@@ -11,8 +11,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 # ---------------- CONFIG ----------------
 BOT_TOKEN = "8872712620:AAEDuEt73mbSJma-EylkK9yaIm-WrDQzw2c"
 # ВАЖНО: Вставь сюда ЧИСЛОВОЙ TELEGRAM ID знакомой (например: 123456789), НЕ ТОКЕН!
-ADMIN_ID = 123456789  
-CHANNEL_ID = "@XJDNDJG"  # Юзернейм канала
+ADMIN_ID = 8822516870  
+CHANNEL_ID = "@DOKIDOKIFOREVERLOVE"  # Юзернейм канала
 # ----------------------------------------
 
 logging.basicConfig(level=logging.INFO)
