@@ -192,7 +192,7 @@ async def pat_handler(message: types.Message):
         target = message.reply_to_message.from_user.first_name
         text = f"🫳 **{author}** нежно погладил(а) **{target}** по голове."
     else:
-        text = f"🫳 **{author}** очень хочет, чтобы его/её кто-нибудь погладил!"
+        text = f"🫳 **{author}** погладил(а) всех, кто находится в чате!"
     
     await message.answer(text, parse_mode=ParseMode.MARKDOWN)
 
