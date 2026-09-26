@@ -51,6 +51,15 @@ async def is_admin(message: types.Message) -> bool:
         return member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]
     return False
 
+# --- Вспомогательная функция автоудаления служебных сообщений ---
+async def delete_after(message: types.Message, delay: int = 120):
+    """Удаляет сообщение через указанное время (по умолчанию 2 минуты)"""
+    await asyncio.sleep(delay)
+    try:
+        await message.delete()
+    except Exception as e:
+        logging.warning(f"Не удалось удалить сообщение: {e}")
+
 # --- База ответов персонажей DDLC ---
 MONIKA_RESPONSES = [
     "Совет от Моники: Не забудь сохранить игру... а лучше сохрани свой сегодняшний день в памяти! ✨",
@@ -96,11 +105,12 @@ async def start_cmd(message: types.Message):
         f"Добро пожаловать в Литературный Клуб **{CHANNEL_ID}**!\n\n"
         "✨ **Что я умею:**\n"
         "• Просто отправь мне **любой текст, фото или видео**, и я передам его администраторам в предложку!\n"
+        "• `обнять` / `погладить` — интерактивные действия с участниками\n"
         "• `/monika` — совет от Моники\n"
         "• `/yuri` — выпить чаю с Юри\n"
         "• `/natsuki` — капкейк от Нацуки\n"
-        "• `/sayori` — обняться с Сайори\n"
-        "• `/mybd ДД.ММ` — записать свой День Рождения (например: `/mybd 13.10` или `/mybd 13. 10`)\n"
+        "• `/sayori` — пообщаться с Сайори\n"
+        "• `/mybd ДД.ММ` — записать свой День Рождения (пример: `/mybd 13.10`)\n"
         "• `/rules` — правила Клуба\n"
     )
     await message.answer(welcome_text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb.as_markup())
@@ -112,9 +122,10 @@ async def rules_cmd(message: types.Message):
         "1. Будьте вежливы к другим участникам клуба.\n"
         "2. Спам, реклама и неконструктивизм запрещены.\n"
         "3. Уважайте вкусы друг друга в литературе и манге!\n\n"
-        "*(Раздел правил находится в процессе дополнения)*"
+        "*(Сообщение удалится через 2 минуты)*"
     )
-    await message.answer(rules_text, parse_mode=ParseMode.MARKDOWN)
+    sent_msg = await message.answer(rules_text, parse_mode=ParseMode.MARKDOWN)
+    asyncio.create_task(delete_after(sent_msg, delay=120))
 
 @dp.callback_query(F.data == "show_rules")
 async def rules_callback(call: types.CallbackQuery):
@@ -123,9 +134,10 @@ async def rules_callback(call: types.CallbackQuery):
         "1. Будьте вежливы к другим участникам клуба.\n"
         "2. Спам, реклама и оскорбления запрещены.\n"
         "3. Уважайте вкусы друг друга в литературе и манге!\n\n"
-        "*(Раздел правил находится в процессе дополнения)*"
+        "*(Сообщение удалится через 2 минуты)*"
     )
-    await call.message.answer(rules_text, parse_mode=ParseMode.MARKDOWN)
+    sent_msg = await call.message.answer(rules_text, parse_mode=ParseMode.MARKDOWN)
+    asyncio.create_task(delete_after(sent_msg, delay=120))
     await call.answer()
 
 @dp.message(Command("monika"))
@@ -145,22 +157,52 @@ async def sayori_cmd(message: types.Message):
     user = message.from_user
     if user.username and user.username.lower() == DMITRY_USERNAME.lower():
         dmitry_text = (
-            "💙 **Сайори:** 'Ой, ДИМА! Мой самый преданный поклонник и защитник! ✨\n"
-            "Я пересмотрела все твои сотни комментариев под постами и собрала целую гору игрушек и артов!\n"
-            "Держи самое большое печенье 🍪 и гигантские обнимашки! Спасибо, что ты со мной с рождения!' 🤗"
+            "💙 **Сайори:** 'Ой, ДИМА! Мой самый любимый и родной! ✨\n"
+            "Представляешь, мы вместе уже **более 2 лет**! 🥹❤️\n"
+            "Спасибо за все арты, за всю твою заботу и за то, что ты всегда рядом со мной!\n"
+            "Держи самое лучшее печенье 🍪 и самые крепкие обнимашки на свете!' 🤗"
         )
         await message.answer(dmitry_text, parse_mode=ParseMode.MARKDOWN)
     else:
         if random.random() < 0.15:
-            text = f"💙 **Сайори:** 'Я сейчас доедаю печенье с Дмитрием (@{DMITRY_USERNAME}), но для тебя у меня тоже найдутся обнимашки!' 🤗"
+            text = f"💙 **Сайори:** 'Я сейчас пью чай и ем печенье с Дмитрием (@{DMITRY_USERNAME}) — мы ведь уже больше 2 лет вместе! Но для тебя у меня тоже найдутся обнимашки!' 🤗"
         else:
             text = f"💙 **Сайори:** {random.choice(SAYORI_RESPONSES)}"
         await message.answer(text, parse_mode=ParseMode.MARKDOWN)
 
+# ----------------- ИНТЕРАКТИВНЫЕ КОМАНДЫ (ОБНЯТЬ / ПОГЛАДИТЬ) -----------------
+
+@dp.message(F.text.lower().in_({"обнять", "обнял", "обняла", "/hug"}))
+async def hug_handler(message: types.Message):
+    author = message.from_user.first_name
+    
+    if message.reply_to_message:
+        target = message.reply_to_message.from_user.first_name
+        text = f"🤗 **{author}** крепко-крепко обнял(а) **{target}**!"
+    else:
+        text = f"🤗 **{author}** обнимает всех участников в чате!"
+    
+    await message.answer(text, parse_mode=ParseMode.MARKDOWN)
+
+@dp.message(F.text.lower().in_({"погладить", "погладил", "погладила", "/pat"}))
+async def pat_handler(message: types.Message):
+    author = message.from_user.first_name
+    
+    if message.reply_to_message:
+        target = message.reply_to_message.from_user.first_name
+        text = f"🫳 **{author}** нежно погладил(а) **{target}** по голове."
+    else:
+        text = f"🫳 **{author}** очень хочет, чтобы его/её кто-нибудь погладил!"
+    
+    await message.answer(text, parse_mode=ParseMode.MARKDOWN)
+
+# -----------------------------------------------------------------------------
+
 @dp.message(Command("mybd"))
 async def set_bd_cmd(message: types.Message, command: CommandObject):
     if not command.args:
-        await message.answer("⚠️ Укажи дату в формате `ДД.ММ` (пример: `/mybd 13.10` или `/mybd 13. 10`)", parse_mode=ParseMode.MARKDOWN)
+        sent_msg = await message.answer("⚠️ Укажи дату в формате `ДД.ММ` (пример: `/mybd 13.10` или `/mybd 13. 10`)", parse_mode=ParseMode.MARKDOWN)
+        asyncio.create_task(delete_after(sent_msg, delay=60))
         return
 
     clean_args = re.sub(r'[\s/]+', '.', command.args.strip())
@@ -169,7 +211,8 @@ async def set_bd_cmd(message: types.Message, command: CommandObject):
     try:
         datetime.strptime(clean_args, "%d.%m")
     except ValueError:
-        await message.answer("❌ Неверный формат даты! Используй число и месяц (например: `13.10` или `05.04`)", parse_mode=ParseMode.MARKDOWN)
+        sent_msg = await message.answer("❌ Неверный формат даты! Используй число и месяц (например: `13.10` или `05.04`)", parse_mode=ParseMode.MARKDOWN)
+        asyncio.create_task(delete_after(sent_msg, delay=60))
         return
 
     bdays = load_json(BDAYS_FILE)
@@ -190,10 +233,10 @@ async def set_bd_cmd(message: types.Message, command: CommandObject):
 @dp.message(Command("warn"))
 async def warn_user(message: types.Message):
     if not await is_admin(message):
-        await message.answer("❌ У вас нет прав для использования этой команды.")
         return
     if not message.reply_to_message:
-        await message.answer("⚠️ Ответьте этой командой на сообщение нарушителя!")
+        sent_msg = await message.answer("⚠️ Ответьте этой командой на сообщение нарушителя!")
+        asyncio.create_task(delete_after(sent_msg, delay=30))
         return
 
     target_user = message.reply_to_message.from_user
@@ -222,7 +265,6 @@ async def unwarn_user(message: types.Message):
     if not await is_admin(message):
         return
     if not message.reply_to_message:
-        await message.answer("⚠️ Ответьте этой командой на сообщение пользователя!")
         return
 
     target_user = message.reply_to_message.from_user
@@ -234,14 +276,14 @@ async def unwarn_user(message: types.Message):
         save_json(WARNS_FILE, warns)
         await message.answer(f"✅ С пользователя {target_user.full_name} снято предупреждение. Осталось: {warns[user_id]}/3")
     else:
-        await message.answer("У этого пользователя нет активных предупреждений.")
+        sent_msg = await message.answer("У этого пользователя нет активных предупреждений.")
+        asyncio.create_task(delete_after(sent_msg, delay=30))
 
 @dp.message(Command("mute"))
 async def mute_user(message: types.Message, command: CommandObject):
     if not await is_admin(message):
         return
     if not message.reply_to_message:
-        await message.answer("⚠️ Ответьте этой командой на сообщение пользователя!")
         return
 
     target_user = message.reply_to_message.from_user
