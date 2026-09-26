@@ -5,6 +5,7 @@ import re
 import json
 import os
 from datetime import datetime, timedelta
+from collections import defaultdict
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command, CommandStart, CommandObject
 from aiogram.enums import ParseMode, ChatMemberStatus
@@ -24,6 +25,22 @@ PORT = int(os.environ.get("PORT", 8080))  # Порт для Render
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+# Хранилище времени сообщений пользователей для анти-спама: {user_id: [timestamp1, timestamp2, ...]}
+user_message_timestamps = defaultdict(list)
+
+# Новые правила
+RULES_TEXT = (
+    "≈◈☛ⲠⲢⲀⲂΥⲖⲀ☚◈≈\n\n"
+    "1~ Ⲙⲁⲧⲉⲣυⲧⲥя Ⲙⲟⲯⲏⲟ ⲏⲟ ⲏⲉ ⲕⲁⲕ ⲥⲁⲡⲟⲯⲏυⲕ\n"
+    "2~ Ⲟⲥⲕⲟⲣⳝⲗяⲧь ⲇⲣⲩⲅυⲭ υ υⲭ ⲣⲟⲇⲏю ⲎⲈⲖЬⳄЯ\n"
+    "3~ Ⲏⲉ ⲥⲡⲁⲙυⲧь Ⲙⲁⲕⲥ. 10 ⲥⲧυⲕⲉⲣⲟⲃ υⲗυ ⲯⲉ ⳡⲉⲅⲟ ⲧⲟ ⲧⲁⲕⲟⲅⲟ\n"
+    "4~ Ⲏⲉ ⲩⲅⲣⲟⲯⲁⲧь ⲏυ ⲕⲟⲙⲩ\n"
+    "5~ ⲏⲉ ⲅⲟⲃⲟⲣυⲧь ⳡⲧⲟ ⲧы ⲉⳝ#ⲁⲗ ⲕⲟⲅⲟ-ⲧⲟ υⲗυ υⳅ Ⲣⲟⲇⲏυ ⳡⲉⲗⲟⲃⲉⲕⲁ\n"
+    "6~ 18+ Ⲙⲟⲯⲏⲟ ⲯⲉⲗⲁⲧⲉⲗьⲏⲟ ⲏⲉ ⲞⳠⲈⲎЬ ⲙⲏⲟⲅⲟ\n\n"
+    "Ⲡⲣⲁⲃυⲗⲁ Ⲥⲟⳝⲗюⲇⲁⲧь υ ⲏⲉ ⲏⲁⲣⲩⲱⲁⲧь ⲡⲣⲁⲃυⲗⲁ\n\n"
+    "*(Сообщение удалится через 2 минуты)*"
+)
 
 # --- Работа с JSON файлами ---
 def load_json(filepath):
@@ -53,12 +70,42 @@ async def is_admin(message: types.Message) -> bool:
 
 # --- Вспомогательная функция автоудаления служебных сообщений ---
 async def delete_after(message: types.Message, delay: int = 120):
-    """Удаляет сообщение через указанное время (по умолчанию 2 минуты)"""
     await asyncio.sleep(delay)
     try:
         await message.delete()
     except Exception as e:
         logging.warning(f"Не удалось удалить сообщение: {e}")
+
+# --- Защита от спама (Анти-спам фильтр) ---
+@dp.message(F.chat.type.in_({"group", "supergroup"}))
+async def anti_spam_middleware(message: types.Message):
+    # Администраторов не проверяем на спам
+    if await is_admin(message):
+        return
+
+    user_id = message.from_user.id
+    now = datetime.now()
+
+    # Очищаем метки времени старше 20 секунд
+    user_message_timestamps[user_id] = [
+        ts for ts in user_message_timestamps[user_id] if (now - ts).total_seconds() <= 20
+    ]
+    user_message_timestamps[user_id].append(now)
+
+    # Если отправлено больше 10 сообщений/стикеров за последние 20 секунд
+    if len(user_message_timestamps[user_id]) > 10:
+        try:
+            await message.delete()
+        except Exception as e:
+            logging.warning(f"Не удалось удалить сообщение спамера: {e}")
+
+        # Отправляем предупреждение 1 раз при превышении лимита
+        if len(user_message_timestamps[user_id]) == 11:
+            warn_msg = await message.answer(
+                f"🚨 {message.from_user.mention_html()}, ах ты негодяй! Дядя L тобой не доволен 😤\nХватит спамить!",
+                parse_mode=ParseMode.HTML
+            )
+            asyncio.create_task(delete_after(warn_msg, delay=15))
 
 # --- База ответов персонажей DDLC ---
 MONIKA_RESPONSES = [
@@ -117,26 +164,12 @@ async def start_cmd(message: types.Message):
 
 @dp.message(Command("rules"))
 async def rules_cmd(message: types.Message):
-    rules_text = (
-        "📜 **Правила Литературного Клуба:**\n\n"
-        "1. Будьте вежливы к другим участникам клуба.\n"
-        "2. Спам, реклама и неконструктивизм запрещены.\n"
-        "3. Уважайте вкусы друг друга в литературе и манге!\n\n"
-        "*(Сообщение удалится через 2 минуты)*"
-    )
-    sent_msg = await message.answer(rules_text, parse_mode=ParseMode.MARKDOWN)
+    sent_msg = await message.answer(RULES_TEXT)
     asyncio.create_task(delete_after(sent_msg, delay=120))
 
 @dp.callback_query(F.data == "show_rules")
 async def rules_callback(call: types.CallbackQuery):
-    rules_text = (
-        "📜 **Правила Литературного Клуба:**\n\n"
-        "1. Будьте вежливы к другим участникам клуба.\n"
-        "2. Спам, реклама и оскорбления запрещены.\n"
-        "3. Уважайте вкусы друг друга в литературе и манге!\n\n"
-        "*(Сообщение удалится через 2 минуты)*"
-    )
-    sent_msg = await call.message.answer(rules_text, parse_mode=ParseMode.MARKDOWN)
+    sent_msg = await call.message.answer(RULES_TEXT)
     asyncio.create_task(delete_after(sent_msg, delay=120))
     await call.answer()
 
