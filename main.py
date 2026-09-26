@@ -9,6 +9,7 @@ from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command, CommandStart, CommandObject
 from aiogram.enums import ParseMode, ChatMemberStatus
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiohttp import web
 
 # ---------------- CONFIG ----------------
 BOT_TOKEN = "8872712620:AAEDuEt73mbSJma-EylkK9yaIm-WrDQzw2c"
@@ -17,14 +18,12 @@ CHANNEL_ID = "@DOKIDOKIFOREVERLOVE"  # Юзернейм канала
 DMITRY_USERNAME = "Chechna777"  # Юзернейм Дмитрия
 BDAYS_FILE = "birthdays.json"
 WARNS_FILE = "warns.json"
+PORT = int(os.environ.get("PORT", 8080))  # Порт для Render
 # ----------------------------------------
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-
-# Хранилище в памяти
-user_warns = {}
 
 # --- Работа с JSON файлами ---
 def load_json(filepath):
@@ -148,7 +147,7 @@ async def sayori_cmd(message: types.Message):
         dmitry_text = (
             "💙 **Сайори:** 'Ой, ДИМА! Мой самый преданный поклонник и защитник! ✨\n"
             "Я пересмотрела все твои сотни комментариев под постами и собрала целую гору игрушек и артов!\n"
-            "Держи самое большое печенье 🍪 и гигантские обнимашки! Спасибо, что ты со мной с рождения!' 🤗"
+            "Держи самое большое печенье 🍪 и гигантские обнимашки! Спасибо, что ты со мной уже два года!' 🤗"
         )
         await message.answer(dmitry_text, parse_mode=ParseMode.MARKDOWN)
     else:
@@ -158,14 +157,12 @@ async def sayori_cmd(message: types.Message):
             text = f"💙 **Сайори:** {random.choice(SAYORI_RESPONSES)}"
         await message.answer(text, parse_mode=ParseMode.MARKDOWN)
 
-# --- Улучшенный ввод Дня Рождения (гибкая очистка пробелов) ---
 @dp.message(Command("mybd"))
 async def set_bd_cmd(message: types.Message, command: CommandObject):
     if not command.args:
         await message.answer("⚠️ Укажи дату в формате `ДД.ММ` (пример: `/mybd 13.10` или `/mybd 13. 10`)", parse_mode=ParseMode.MARKDOWN)
         return
 
-    # Очищаем от пробелов, слэшей и точек
     clean_args = re.sub(r'[\s/]+', '.', command.args.strip())
     clean_args = re.sub(r'\.+', '.', clean_args)
 
@@ -248,7 +245,7 @@ async def mute_user(message: types.Message, command: CommandObject):
         return
 
     target_user = message.reply_to_message.from_user
-    minutes = 60 # По умолчанию 1 час
+    minutes = 60
 
     if command.args:
         arg = command.args.lower()
@@ -387,7 +384,20 @@ async def birthday_checker():
             await asyncio.sleep(60)
         await asyncio.sleep(30)
 
+# --- Веб-сервер для поддержания активности на Render ---
+async def handle_ping(request):
+    return web.Response(text="Bot is alive!")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get('/', handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', PORT)
+    await site.start()
+
 async def main():
+    await start_web_server()
     asyncio.create_task(birthday_checker())
     await dp.start_polling(bot)
 
