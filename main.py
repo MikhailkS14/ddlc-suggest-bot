@@ -13,7 +13,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiohttp import web
 
 # ---------------- CONFIG ----------------
-BOT_TOKEN = "8872712620:AAHa6LcIJpWtVDElhKt_watIrvWLoTFuU4A"
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8872712620:AAHa6LcIJpWtVDElhKt_watIrvWLoTFuU4A")
 ADMIN_ID = 8822516870  # ID глав. админа
 CHANNEL_ID = "@DOKIDOKIFOREVERLOVE"  # Юзернейм канала
 DMITRY_USERNAME = "Chechna777"  # Юзернейм Дмитрия
