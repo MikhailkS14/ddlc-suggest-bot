@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Хранилище времени сообщений пользователей для анти-спама: {user_id: [timestamp1, timestamp2, ...]}
+# Хранилище времени сообщений пользователей для анти-спама
 user_message_timestamps = defaultdict(list)
 
 # Новые правила
@@ -34,7 +34,7 @@ RULES_TEXT = (
     "≈◈☛ⲠⲢⲀⲂΥⲖⲀ☚◈≈\n\n"
     "1~ Ⲙⲁⲧⲉⲣυⲧⲥя Ⲙⲟⲯⲏⲟ ⲏⲟ ⲏⲉ ⲕⲁⲕ ⲥⲁⲡⲟⲯⲏυⲕ\n"
     "2~ Ⲟⲥⲕⲟⲣⳝⲗяⲧь ⲇⲣⲩⲅυⲭ υ υⲭ ⲣⲟⲇⲏю ⲎⲈⲖЬⳄЯ\n"
-    "3~ Ⲏⲉ ⲥⲡⲁⲙυⲧь Ⲙⲁⲕⲥ. 10 ⲥⲧυⲕⲉⲣⲟⲃ υⲗυ ⲯⲉ ⳡⲉⲅⲟ ⲧⲟ ⲧⲁⲕⲟⲅⲟ\n"
+    "3~ Ⲏⲉ ⲥⲡⲁⲙυⲧь Ⲙⲁⲕⲥ. 10 ⲥⲧυⲕⲉⲣⲟⲃ υⲗυ ⲯⲉ ⳡⲉⲅⲟ ⲧⲁⲕⲟⲅⲟ\n"
     "4~ Ⲏⲉ ⲩⲅⲣⲟⲯⲁⲧь ⲏυ ⲕⲟⲙⲩ\n"
     "5~ ⲏⲉ ⲅⲟⲃⲟⲣυⲧь ⳡⲧⲟ ⲧы ⲉⳝ#ⲁⲗ ⲕⲟⲅⲟ-ⲧⲟ υⲗυ υⳅ Ⲣⲟⲇⲏυ ⳡⲉⲗⲟⲃⲉⲕⲁ\n"
     "6~ 18+ Ⲙⲟⲯⲏⲟ ⲯⲉⲗⲁⲧⲉⲗьⲏⲟ ⲏⲉ ⲞⳠⲈⲎЬ ⲙⲏⲟⲅⲟ\n\n"
@@ -64,21 +64,24 @@ async def is_admin(message: types.Message) -> bool:
     if message.from_user.id == ADMIN_ID:
         return True
     if message.chat.type in ["group", "supergroup"]:
-        member = await message.chat.get_member(message.from_user.id)
-        return member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]
+        try:
+            member = await message.chat.get_member(message.from_user.id)
+            return member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]
+        except Exception:
+            return False
     return False
 
-# --- Вспомогательная функция автоудаления служебных сообщений ---
+# --- Функция автоудаления ---
 async def delete_after(message: types.Message, delay: int = 120):
     await asyncio.sleep(delay)
     try:
         await message.delete()
-    except Exception as e:
-        logging.warning(f"Не удалось удалить сообщение: {e}")
+    except Exception:
+        pass
 
 # --- Защита от спама (Анти-спам фильтр) ---
 @dp.message(F.chat.type.in_({"group", "supergroup"}))
-async def anti_spam_middleware(message: types.Message):
+async def anti_spam_check(message: types.Message):
     # Администраторов не проверяем на спам
     if await is_admin(message):
         return
@@ -96,10 +99,9 @@ async def anti_spam_middleware(message: types.Message):
     if len(user_message_timestamps[user_id]) > 10:
         try:
             await message.delete()
-        except Exception as e:
-            logging.warning(f"Не удалось удалить сообщение спамера: {e}")
+        except Exception:
+            pass
 
-        # Отправляем предупреждение 1 раз при превышении лимита
         if len(user_message_timestamps[user_id]) == 11:
             warn_msg = await message.answer(
                 f"🚨 {message.from_user.mention_html()}, ах ты негодяй! Дядя L тобой не доволен 😤\nХватит спамить!",
@@ -203,38 +205,34 @@ async def sayori_cmd(message: types.Message):
             text = f"💙 **Сайори:** {random.choice(SAYORI_RESPONSES)}"
         await message.answer(text, parse_mode=ParseMode.MARKDOWN)
 
-# ----------------- ИНТЕРАКТИВНЫЕ КОМАНДЫ (ОБНЯТЬ / ПОГЛАДИТЬ) -----------------
+# ----------------- ИНТЕРАКТИВНЫЕ КОМАНДЫ -----------------
 
 @dp.message(F.text.lower().in_({"обнять", "обнял", "обняла", "/hug"}))
 async def hug_handler(message: types.Message):
     author = message.from_user.first_name
-    
     if message.reply_to_message:
         target = message.reply_to_message.from_user.first_name
         text = f"🤗 **{author}** крепко-крепко обнял(а) **{target}**!"
     else:
         text = f"🤗 **{author}** обнимает всех участников в чате!"
-    
     await message.answer(text, parse_mode=ParseMode.MARKDOWN)
 
 @dp.message(F.text.lower().in_({"погладить", "погладил", "погладила", "/pat"}))
 async def pat_handler(message: types.Message):
     author = message.from_user.first_name
-    
     if message.reply_to_message:
         target = message.reply_to_message.from_user.first_name
         text = f"🫳 **{author}** нежно погладил(а) **{target}** по голове."
     else:
         text = f"🫳 **{author}** погладил(а) всех, кто находится в чате!"
-    
     await message.answer(text, parse_mode=ParseMode.MARKDOWN)
 
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------
 
 @dp.message(Command("mybd"))
 async def set_bd_cmd(message: types.Message, command: CommandObject):
     if not command.args:
-        sent_msg = await message.answer("⚠️ Укажи дату в формате `ДД.ММ` (пример: `/mybd 13.10` или `/mybd 13. 10`)", parse_mode=ParseMode.MARKDOWN)
+        sent_msg = await message.answer("⚠️ Укажи дату в формате `ДД.ММ` (пример: `/mybd 13.10`)", parse_mode=ParseMode.MARKDOWN)
         asyncio.create_task(delete_after(sent_msg, delay=60))
         return
 
@@ -244,7 +242,7 @@ async def set_bd_cmd(message: types.Message, command: CommandObject):
     try:
         datetime.strptime(clean_args, "%d.%m")
     except ValueError:
-        sent_msg = await message.answer("❌ Неверный формат даты! Используй число и месяц (например: `13.10` или `05.04`)", parse_mode=ParseMode.MARKDOWN)
+        sent_msg = await message.answer("❌ Неверный формат даты! Используй число и месяц (например: `13.10`)", parse_mode=ParseMode.MARKDOWN)
         asyncio.create_task(delete_after(sent_msg, delay=60))
         return
 
@@ -265,11 +263,7 @@ async def set_bd_cmd(message: types.Message, command: CommandObject):
 
 @dp.message(Command("warn"))
 async def warn_user(message: types.Message):
-    if not await is_admin(message):
-        return
-    if not message.reply_to_message:
-        sent_msg = await message.answer("⚠️ Ответьте этой командой на сообщение нарушителя!")
-        asyncio.create_task(delete_after(sent_msg, delay=30))
+    if not await is_admin(message) or not message.reply_to_message:
         return
 
     target_user = message.reply_to_message.from_user
@@ -295,9 +289,7 @@ async def warn_user(message: types.Message):
 
 @dp.message(Command("unwarn"))
 async def unwarn_user(message: types.Message):
-    if not await is_admin(message):
-        return
-    if not message.reply_to_message:
+    if not await is_admin(message) or not message.reply_to_message:
         return
 
     target_user = message.reply_to_message.from_user
@@ -308,15 +300,10 @@ async def unwarn_user(message: types.Message):
         warns[user_id] -= 1
         save_json(WARNS_FILE, warns)
         await message.answer(f"✅ С пользователя {target_user.full_name} снято предупреждение. Осталось: {warns[user_id]}/3")
-    else:
-        sent_msg = await message.answer("У этого пользователя нет активных предупреждений.")
-        asyncio.create_task(delete_after(sent_msg, delay=30))
 
 @dp.message(Command("mute"))
 async def mute_user(message: types.Message, command: CommandObject):
-    if not await is_admin(message):
-        return
-    if not message.reply_to_message:
+    if not await is_admin(message) or not message.reply_to_message:
         return
 
     target_user = message.reply_to_message.from_user
@@ -338,9 +325,7 @@ async def mute_user(message: types.Message, command: CommandObject):
 
 @dp.message(Command("unmute"))
 async def unmute_user(message: types.Message):
-    if not await is_admin(message):
-        return
-    if not message.reply_to_message:
+    if not await is_admin(message) or not message.reply_to_message:
         return
 
     target_user = message.reply_to_message.from_user
@@ -356,28 +341,22 @@ async def unmute_user(message: types.Message):
 
 @dp.message(Command("ban"))
 async def ban_user(message: types.Message):
-    if not await is_admin(message):
+    if not await is_admin(message) or not message.reply_to_message:
         return
-    if not message.reply_to_message:
-        return
-
     target_user = message.reply_to_message.from_user
     await message.chat.ban(user_id=target_user.id)
     await message.answer(f"🚫 Пользователь {target_user.full_name} забанен.")
 
 @dp.message(Command("kick"))
 async def kick_user(message: types.Message):
-    if not await is_admin(message):
+    if not await is_admin(message) or not message.reply_to_message:
         return
-    if not message.reply_to_message:
-        return
-
     target_user = message.reply_to_message.from_user
     await message.chat.ban(user_id=target_user.id)
     await message.chat.unban(user_id=target_user.id)
     await message.answer(f"👞 Пользователь {target_user.full_name} кикнут из чата.")
 
-# --- Приём предложенных новостей (в ЛС боту) ---
+# --- Предложка (ЛС) ---
 @dp.message(F.chat.type == "private")
 async def handle_suggest(message: types.Message):
     if message.text and message.text.startswith("/"):
@@ -437,7 +416,7 @@ async def reject_callback(call: types.CallbackQuery):
         pass
     await call.answer()
 
-# --- Ежедневная проверка Дней Рождения ---
+# --- Проверка ДР ---
 async def birthday_checker():
     while True:
         now = datetime.now()
@@ -459,11 +438,12 @@ async def birthday_checker():
             await asyncio.sleep(60)
         await asyncio.sleep(30)
 
-# --- Веб-сервер для поддержания активности на Render ---
+# --- Веб-сервер для Render ---
 async def handle_ping(request):
-    return web.Response(text="Bot is alive!")
+    return web.Response(text="OK")
 
-async def start_web_server():
+async def main():
+    # Запуск веб-сервера фоном
     app = web.Application()
     app.router.add_get('/', handle_ping)
     runner = web.AppRunner(app)
@@ -471,8 +451,7 @@ async def start_web_server():
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
 
-async def main():
-    await start_web_server()
+    # Запуск задач бота
     asyncio.create_task(birthday_checker())
     await dp.start_polling(bot)
 
