@@ -438,12 +438,12 @@ async def birthday_checker():
             await asyncio.sleep(60)
         await asyncio.sleep(30)
 
-# --- Веб-сервер для Render ---
+# --- Корректный веб-сервер для Render ---
 async def handle_ping(request):
     return web.Response(text="OK")
 
 async def main():
-    # Запуск веб-сервера фоном
+    # Запуск веб-сервера для удовлетворения Health Check на Render
     app = web.Application()
     app.router.add_get('/', handle_ping)
     runner = web.AppRunner(app)
@@ -451,8 +451,13 @@ async def main():
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
 
-    # Запуск задач бота
+    # Запускаем фоновую задачу
     asyncio.create_task(birthday_checker())
+
+    # Сбрасываем вебхуки для стабильного старта поллинга
+    await bot.delete_webhook(drop_pending_updates=True)
+
+    # Запуск поллинга aiogram
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
