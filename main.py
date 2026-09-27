@@ -22,18 +22,16 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# --- Словари предпочтений героинь ---
+# --- СЛОВАРИ И ДАННЫЕ ДЛЯ СТИХОВ ---
 SAYORI_WORDS = {"счастье", "солнце", "дружба", "уют", "печенье", "улыбка", "обнимашки", "радость"}
 YURI_WORDS = {"дождь", "книга", "чай", "тьма", "тайна", "философия", "ночь", "тишина", "судьба"}
 NATSUKI_WORDS = {"сладости", "капкейк", "котик", "манга", "мило", "клубника", "торт", "розовый"}
 
-# Словарь меланхоличных / грустных слов
 SAD_WORDS = {
     "боль", "слёзы", "слезы", "тьма", "одиночество", "тоска", "грусть", "печаль", 
     "прощай", "крик", "шрам", "кровь", "тень", "холод", "увядание", "забыт", "мрак", "звонок"
 }
 
-# --- Шаблоны стихотворений ---
 LIGHT_TEMPLATES = [
     "В нашем клубе сегодня витают {w1} и {w2},\nМы пишем строки, забывая про тоску.\nПусть греют душу нам {w3} и {w4} в тишине —\nСловно во сне, в моём окне...",
     "Где-то далеко остались {w1} и {w2},\nА в Литературном Клубе снова теплота.\nПусть дарят радость нам {w3} и {w4},\nИ льётся свет сквозь облака!",
@@ -44,6 +42,33 @@ SAD_TEMPLATES = [
     "Капают капли, скрывая {w1} и {w2},\nВ пустой комнате снова витает тоска.\nЗабытые мысли, лишь {w3} и {w4} вдали —\nМы удержать этот миг не смогли...",
     "Тихо уходит свет, оставляя {w1} и {w2},\nСловно эхо из прошлого, ранит строка.\nКогда в сердце лишь {w3} и {w4} остались опять,\nНам остается только молча ждать...",
     "Сквозь холодный туман пробиваются {w1} и {w2},\nЗастыли слова на обожженном листке.\nЛишь тихий шёпот, где {w3} и {w4} замерли в ночи —\nИ догорает пламя одинокой свечи..."
+]
+
+# --- БАЗА ДАННЫХ ДЛЯ ИГР ---
+MONIKA_ADVICES = [
+    "Помни: если что-то идёт не по плану, сделай паузу, выпей чаю и взгляни на всё с нового ракурса! ✨",
+    "Иногда самое важное решение — это просто дать себе отдохнуть. Ты отлично справляешься! 💚",
+    "Не бойся ошибок в своём 'коде жизни'. Каждая из них — лишь шаг к созданию идеальной программы! ☕",
+    "Каждый день — это новая страница. Какую историю ты напишешь сегодня?",
+    "Секрет успеха прост: верь в свои силы и не забывай улыбаться даже в самые пасмурные дни! 🎀"
+]
+
+QUIZ_QUESTIONS = [
+    {
+        "question": "📜 Какой любимый жанр книг предпочитает Юри?",
+        "options": ["Комедийная манга", "Глубокий психологический хоррор", "Легкая романтика", "Научная фантастика"],
+        "correct": 1
+    },
+    {
+        "question": "🧁 Какой ингредиент Нацуки считала самым секретным для идеального капкейка?",
+        "options": ["Соль", "Любовь и ваниль", "Какао", "Клубничный джем"],
+        "correct": 1
+    },
+    {
+        "question": "🎀 Кто является основателем и президентом Литературного Клуба?",
+        "options": ["Сайори", "Юри", "Моника", "Нацуки"],
+        "correct": 2
+    }
 ]
 
 def load_json(filepath):
@@ -69,15 +94,18 @@ async def start_cmd(message: types.Message):
         welcome_text = (
             f"Привет, {message.from_user.first_name}! 🎀\n\n"
             f"Это официальный бот Клуба **{CHANNEL_ID}**!\n\n"
-            "✨ **Что я умею:**\n"
-            "• **Отправь мне любой текст, фото или видео**, и я передам его администраторам в предложку канала!\n"
-            "• `/mybd ДД.ММ` — записать свой День Рождения (пример: `/mybd 13.10`)\n\n"
-            "🎭 **Фича для чата:**\n"
-            "Напиши `!стих слово1, слово2, слово3, слово4`, и я сочиню стихотворение в стиле DDLC!"
+            "✨ **Предложка:** Отправь мне текст, фото или видео, и я передам администраторам!\n"
+            "📅 `/mybd ДД.ММ` — записать свой День Рождения.\n\n"
+            "🎭 **Мини-игры и развлечения в чате:**\n"
+            "• `!стих слово1, слово2, слово3, слово4` — сочинить стихотворение в стиле DDLC\n"
+            "• `!капкейк` — угостить Нацуки сладостями\n"
+            "• `!моника` или `!совет` — совет дня от Моники\n"
+            "• `!печенье` — бросить печеньку в чат для Сайори\n"
+            "• `!чай` или `!викторина` — литературная викторина с Юри"
         )
         await message.answer(welcome_text, parse_mode=ParseMode.MARKDOWN)
 
-# --- ГЕНЕРАТОР СТИХОВ (Команда !стих или /poem) ---
+# --- 1. ГЕНЕРАТОР СТИХОВ ---
 @dp.message(F.text.startswith("!стих") | F.text.startswith("/poem"))
 async def generate_poem(message: types.Message):
     raw_text = message.text.replace("!стих", "").replace("/poem", "").strip()
@@ -86,15 +114,13 @@ async def generate_poem(message: types.Message):
     if len(words) < 4:
         await message.reply(
             "⚠️ Напиши **ровно 4 слова** через запятую или пробел!\n"
-            "Пример: `!стих боль, слёзы, тьма, тоска`",
+            "Пример: `!стих чай, книга, дождь, уют`",
             parse_mode=ParseMode.MARKDOWN
         )
         return
 
     w1, w2, w3, w4 = words[0], words[1], words[2], words[3]
     all_words = set(words)
-    
-    # Проверяем наличие грустных слов
     sad_score = len(all_words.intersection(SAD_WORDS))
 
     if sad_score >= 1:
@@ -123,8 +149,90 @@ async def generate_poem(message: types.Message):
         f"*{poem_text}*\n\n"
         f"{reaction}"
     )
-    
     await message.answer(result_msg, parse_mode=ParseMode.MARKDOWN)
+
+# --- 2. ИГРА: УГОСТИ НАЦУКИ КАПКЕЙКОМ ---
+@dp.message(F.text.startswith("!капкейк") | F.text.startswith("!нацуки"))
+async def cupcake_game(message: types.Message):
+    outcome = random.randint(1, 100)
+    user_name = message.from_user.first_name
+
+    if outcome <= 25:
+        res = (
+            f"🧁 **{user_name}** выпекает капкейк...\n\n"
+            "💥 **О нет!** Ты передержал его в духовке, и он подгорел!\n"
+            "💖 **Нацуки:** *«Эй! Ты что, пытаешься меня отравить?! Иди переделывай!»* 😾"
+        )
+    elif outcome <= 75:
+        res = (
+            f"🧁 **{user_name}** угощает Нацуки пышным глазированным капкейком!\n\n"
+            "💖 **Нацуки:** *«Н-ну... получилось довольно вкусно! Но не думай, что ты меня этим впечатлил, дурак!»* 😳"
+        )
+    else:
+        res = (
+            f"🧁 **{user_name}** создает настоящий клубничный шедевр!\n\n"
+            "✨ **Идеально!**\n"
+            "💖 **Нацуки (глаза светятся):** *«Вау... Это потрясающе! Ладно, ты официально лучший кулинар в этом клубе!»* 🧁💖"
+        )
+    await message.answer(res, parse_mode=ParseMode.MARKDOWN)
+
+# --- 3. ИГРА: СОВЕТ ОТ МОНИКИ ---
+@dp.message(F.text.startswith("!моника") | F.text.startswith("!совет"))
+async def monika_advice(message: types.Message):
+    advice = random.choice(MONIKA_ADVICES)
+    text = (
+        f"💚 **Разговор по душам с Моникой:**\n\n"
+        f"*{advice}*\n\n"
+        f"— Всегда рядом, твоя Моника. ✨"
+    )
+    await message.answer(text, parse_mode=ParseMode.MARKDOWN)
+
+# --- 4. ИГРА: ПОЙМАЙ ПЕЧЕНЬКУ САЙОРИ ---
+@dp.message(F.text.startswith("!печенье") | F.text.startswith("!сайори"))
+async def cookie_drop(message: types.Message):
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🍪 Схватить печеньку!", callback_data="grab_cookie")
+    
+    text = (
+        f"💙 **Сайори упустила коробку с печеньем!**\n"
+        f"Одна розовая печенька катится по столу... Кто успеет забрать ее первым?"
+    )
+    await message.answer(text, reply_markup=kb.as_markup())
+
+@dp.callback_query(F.data == "grab_cookie")
+async def grab_cookie_cb(call: types.CallbackQuery):
+    user_name = call.from_user.first_name
+    await call.message.edit_text(
+        f"🎉 **{user_name}** оказался самым быстрым и схватил печеньку!\n\n"
+        f"💙 **Сайори:** *«Э-эй! Это была моя последняя печенька! Ну ладно... приятного аппетита!»* 😋"
+    )
+    await call.answer()
+
+# --- 5. ИГРА: ВИКТОРИНА С ЮРИ ---
+@dp.message(F.text.startswith("!чай") | F.text.startswith("!викторина"))
+async def quiz_cmd(message: types.Message):
+    q = random.choice(QUIZ_QUESTIONS)
+    kb = InlineKeyboardBuilder()
+    
+    for idx, opt in enumerate(q["options"]):
+        # Кодируем правильный ли ответ в callback_data
+        is_correct = "1" if idx == q["correct"] else "0"
+        kb.button(text=opt, callback_data=f"quiz_{is_correct}")
+    
+    kb.adjust(1)
+    text = f"☕ **Чаепитие и викторина с Юри:**\n\n{q['question']}"
+    await message.answer(text, reply_markup=kb.as_markup())
+
+@dp.callback_query(F.data.startswith("quiz_"))
+async def quiz_cb(call: types.CallbackQuery):
+    status = call.data.split("_")[1]
+    if status == "1":
+        ans = "💜 **Юри (улыбается):** 'Абсолютно верно! Я впечатлена твоей эрудицией. Держи чашку свежесваренного чая!' ☕✨"
+    else:
+        ans = "💜 **Юри (смущенно):** 'Ох, к сожалению, это не совсем так... Но не переживай, попробовать ещё раз никогда не поздно!' 🍵"
+    
+    await call.message.edit_text(f"{call.message.text}\n\n{ans}")
+    await call.answer()
 
 # --- Запись Дня Рождения ---
 @dp.message(Command("mybd"))
