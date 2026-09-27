@@ -290,9 +290,10 @@ async def set_bd_cmd(message: types.Message, command: CommandObject):
     save_json(BDAYS_FILE, bdays)
     await message.answer(f"🎉 Запомнил! Твой День Рождения — **{date_str}**.", parse_mode=ParseMode.MARKDOWN)
 
-# --- ПРЕДЛОЖКА ТОЛЬКО В ЛИЧНЫХ СООБЩЕНИЯХ ---
+# --- ПРЕДЛОЖКА (РАБОТАЕТ СТРОГО ТОЛЬКО В ЛИЧНЫХ СООБЩЕНИЯХ) ---
 @dp.message(F.chat.type == "private")
 async def handle_suggest(message: types.Message):
+    # Игнорируем обычные команды и вызовы с '!', чтобы они обрабатывались своими хэндлерами выше
     if message.text and (message.text.startswith("/") or message.text.startswith("!")):
         return
 
@@ -346,28 +347,17 @@ async def publish_callback(call: types.CallbackQuery):
     user_id = call.data.split("_")[1]
     
     try:
-        # Автоматическая публикация оригинала в канал
         if call.message.photo:
             caption = call.message.caption or ""
-            # Очищаем от заголовка админ-уведомления
-            if "<blockquote>" in caption:
-                clean_text = caption.split("<blockquote>")[1].split("</blockquote>")[0]
-            else:
-                clean_text = ""
+            clean_text = caption.split("<blockquote>")[1].split("</blockquote>")[0] if "<blockquote>" in caption else ""
             await bot.send_photo(CHANNEL_ID, call.message.photo[-1].file_id, caption=clean_text)
         elif call.message.video:
             caption = call.message.caption or ""
-            if "<blockquote>" in caption:
-                clean_text = caption.split("<blockquote>")[1].split("</blockquote>")[0]
-            else:
-                clean_text = ""
+            clean_text = caption.split("<blockquote>")[1].split("</blockquote>")[0] if "<blockquote>" in caption else ""
             await bot.send_video(CHANNEL_ID, call.message.video.file_id, caption=clean_text)
         elif call.message.text:
             text = call.message.text
-            if "<blockquote>" in text:
-                clean_text = text.split("<blockquote>")[1].split("</blockquote>")[0]
-            else:
-                clean_text = text
+            clean_text = text.split("<blockquote>")[1].split("</blockquote>")[0] if "<blockquote>" in text else text
             await bot.send_message(CHANNEL_ID, clean_text)
 
         await call.message.edit_reply_markup(reply_markup=None)
