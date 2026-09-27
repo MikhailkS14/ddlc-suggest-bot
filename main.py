@@ -1,16 +1,18 @@
 import logging
 import os
 import asyncio
-from typing import List, Union, Dict
+import re
+from typing import Dict, Set
+from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart, Command
-from aiogram.enums import ParseMode
+from aiogram.enums import ParseMode, ChatMemberStatus
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import BotCommand, InputMediaPhoto, InputMediaVideo
+from aiogram.types import BotCommand, ChatPermissions
 from aiohttp import web
 
 # ================= CONFIGURATION =================
@@ -24,16 +26,19 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# Список заблокированных пользователей (в оперативной памяти)
-BANNED_USERS = set()
+# Хранилище заблокированных в предложке пользователей
+BANNED_USERS: Set[int] = set()
+
+# Хранилище варнов в чате: {user_id: count}
+USER_WARNS: Dict[int, int] = {}
 
 # Хранилище временных данных предложек: {draft_id: {...}}
 DRAFTS: Dict[str, dict] = {}
 
-# FSM Состояния
-class RejectState(StatesGroup):
-    waiting_for_reason = State()
+# Черный список слов для автомодерации чата
+BAD_WORDS = {"спам", "скам", "ругательство"}  # Можно дополнить своими словами
 
+# FSM Состояния
 class CustomRejectState(StatesGroup):
     waiting_for_custom_reason = State()
 
@@ -41,12 +46,22 @@ class CustomRejectState(StatesGroup):
 async def check_subscription(user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
-        return member.status in ["creator", "administrator", "member"]
+        return member.status in [ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.MEMBER]
     except Exception as e:
         logging.error(f"Ошибка проверки подписки: {e}")
-        return True  # В случае ошибки пропускаем, чтобы не блокировать бота
+        return True
 
-# --- СЕРВЕР ДЛЯ KEEP-ALIVE (HEROKU/RENDER) ---
+# --- ПРОВЕРКА АДМИНА В ЧАТЕ ---
+async def is_admin(chat_id: int, user_id: int) -> bool:
+    if user_id == ADMIN_ID:
+        return True
+    try:
+        member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
+        return member.status in [ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR]
+    except Exception:
+        return False
+
+# --- СЕРВЕР ДЛЯ KEEP-ALIVE ---
 async def handle_ping(request):
     return web.Response(text="Bot is running smoothly!")
 
@@ -71,6 +86,115 @@ async def start_cmd(message: types.Message):
     kb.button(text="📢 Наш канал", url=f"https://t.me/{CHANNEL_ID.replace('@', '')}")
     await message.answer(welcome_text, parse_mode=ParseMode.HTML, reply_markup=kb.as_markup())
 
+# ================= ФИШКИ ДЛЯ ЧАТА =================
+
+# 1. Правила чата
+@dp.message(Command("rules"), F.chat.type.in_({"group", "supergroup"}))
+async def rules_cmd(message: types.Message):
+    rules_text = (
+        "📜 <b>Правила Литературного Клуба:</b>\n\n"
+        "1. Будьте вежливы и уважайте остальных участников. 🌸\n"
+        "2. Запрещён спам, реклама и несанкционированные ссылки. 🚫\n"
+        "3. Избегайте оскорблений и конфликтов. 🤝\n"
+        "4. Соблюдайте тематику нашего клуба!\n\n"
+        "✨ <i>За нарушение правил администраторы могут выдать варн или мут.</i>"
+    )
+    await message.answer(rules_text, parse_mode=ParseMode.HTML)
+
+# 2. Интерактивная игра /dice (кубик / монетка)
+@dp.message(Command("dice"), F.chat.type.in_({"group", "supergroup"}))
+async def dice_cmd(message: types.Message):
+    await message.answer_dice(emoji="🎲")
+
+# 3. Выдача предупреждения (/warn)
+@dp.message(Command("warn"), F.chat.type.in_({"group", "supergroup"}))
+async def warn_cmd(message: types.Message):
+    if not await is_admin(message.chat.id, message.from_user.id):
+        return
+
+    if not message.reply_to_message:
+        await message.reply("⚠️ Ответьте этой командой на сообщение нарушителя.")
+        return
+
+    target_user = message.reply_to_message.from_user
+    if target_user.id == (await bot.get_me()).id or await is_admin(message.chat.id, target_user.id):
+        await message.reply("❌ Нельзя выдать варн администратору или боту.")
+        return
+
+    warns = USER_WARNS.get(target_user.id, 0) + 1
+    USER_WARNS[target_user.id] = warns
+
+    if warns >= 3:
+        try:
+            await bot.ban_chat_member(message.chat.id, target_user.id)
+            await bot.unban_chat_member(message.chat.id, target_user.id)  # Исключаем (кик)
+            USER_WARNS[target_user.id] = 0
+            await message.answer(f"🔴 <b>{target_user.full_name}</b> получил 3/3 варнов и исключён из чата!", parse_mode=ParseMode.HTML)
+        except Exception as e:
+            await message.reply(f"⚠️ Ошибка при исключении: {e}")
+    else:
+        await message.answer(f"⚠️ <b>{target_user.full_name}</b> получает предупреждение! ({warns}/3)", parse_mode=ParseMode.HTML)
+
+# 4. Снятие предупреждения (/unwarn)
+@dp.message(Command("unwarn"), F.chat.type.in_({"group", "supergroup"}))
+async def unwarn_cmd(message: types.Message):
+    if not await is_admin(message.chat.id, message.from_user.id):
+        return
+
+    if not message.reply_to_message:
+        await message.reply("⚠️ Ответьте этой командой на сообщение пользователя.")
+        return
+
+    target_user = message.reply_to_message.from_user
+    warns = USER_WARNS.get(target_user.id, 0)
+
+    if warns > 0:
+        USER_WARNS[target_user.id] = warns - 1
+        await message.answer(f"✅ Предупреждение снято! У <b>{target_user.full_name}</b> осталось ({warns - 1}/3)", parse_mode=ParseMode.HTML)
+    else:
+        await message.reply("У пользователя нет активных варнов.")
+
+# 5. Мут (/mute <минуты>)
+@dp.message(Command("mute"), F.chat.type.in_({"group", "supergroup"}))
+async def mute_cmd(message: types.Message):
+    if not await is_admin(message.chat.id, message.from_user.id):
+        return
+
+    if not message.reply_to_message:
+        await message.reply("⚠️ Ответьте этой командой на сообщение нарушителя.")
+        return
+
+    target_user = message.reply_to_message.from_user
+    args = message.text.split()
+    minutes = int(args[1]) if len(args) > 1 and args[1].isdigit() else 10
+
+    until_date = datetime.now() + timedelta(minutes=minutes)
+    permissions = ChatPermissions(can_send_messages=False)
+
+    try:
+        await bot.restrict_chat_member(message.chat.id, target_user.id, permissions=permissions, until_date=until_date)
+        await message.answer(f"🤐 <b>{target_user.full_name}</b> переведён в режим чтения на {minutes} минут.", parse_mode=ParseMode.HTML)
+    except Exception as e:
+        await message.reply(f"⚠️ Ошибка при муте: {e}")
+
+# 6. Кик (/kick)
+@dp.message(Command("kick"), F.chat.type.in_({"group", "supergroup"}))
+async def kick_cmd(message: types.Message):
+    if not await is_admin(message.chat.id, message.from_user.id):
+        return
+
+    if not message.reply_to_message:
+        await message.reply("⚠️ Ответьте этой командой на сообщение пользователя.")
+        return
+
+    target_user = message.reply_to_message.from_user
+    try:
+        await bot.ban_chat_member(message.chat.id, target_user.id)
+        await bot.unban_chat_member(message.chat.id, target_user.id)
+        await message.answer(f"🚪 <b>{target_user.full_name}</b> был исключён из чата.", parse_mode=ParseMode.HTML)
+    except Exception as e:
+        await message.reply(f"⚠️ Ошибка: {e}")
+
 # --- ПРИВЕТСТВИЕ И ПРОЩАНИЕ В ГРУППАХ ---
 @dp.message(F.new_chat_members)
 async def welcome_new_members(message: types.Message):
@@ -83,7 +207,7 @@ async def welcome_new_members(message: types.Message):
         welcome_msg = (
             f"🌸 <b>Добро пожаловать в Литературный Клуб, {name}!</b> 🎀\n\n"
             f"Мы очень рады видеть тебя с нами! Проходи, присаживайся, налей чашечку чая ☕ и чувствуй себя как дома. ✨\n"
-            f"Не забудь ознакомиться с правилами чата!"
+            f"Ознакомься с правилами чата с помощью команды /rules !"
         )
         await message.answer(welcome_msg, parse_mode=ParseMode.HTML)
 
@@ -101,7 +225,34 @@ async def farewell_member(message: types.Message):
     )
     await message.answer(farewell_msg, parse_mode=ParseMode.HTML)
 
-# --- ПРИЕМ ПРЕДЛОЖЕК (В ЛС) ---
+# --- АВТОМОДЕРАЦИЯ ЧАТА (ФИЛЬТР СПАМА И ССЫЛОК) ---
+@dp.message(F.chat.type.in_({"group", "supergroup"}))
+async def chat_moderation(message: types.Message):
+    if not message.text:
+        return
+
+    # Игнорируем администраторов
+    if await is_admin(message.chat.id, message.from_user.id):
+        return
+
+    text_lower = message.text.lower()
+
+    # Удаление несанкционированных ссылок на сторонние каналы/чаты
+    if "t.me/" in text_lower or "telegram.me/" in text_lower:
+        if CHANNEL_ID.replace("@", "").lower() not in text_lower:
+            await message.delete()
+            await message.answer(f"⚠️ {message.from_user.first_name}, ссылки на сторонние ресурсы запрещены!", show_alert=True)
+            return
+
+    # Проверка на запрещённые слова
+    for word in BAD_WORDS:
+        if word in text_lower:
+            await message.delete()
+            await message.answer(f"⚠️ Сообщение от {message.from_user.first_name} удалено из-за ненормативной лексики.")
+            break
+
+# ================= ПРЕДЛОЖКА (В ЛС) =================
+
 @dp.message(F.chat.type == "private")
 async def handle_suggestion(message: types.Message, state: FSMContext):
     user = message.from_user
@@ -110,11 +261,9 @@ async def handle_suggestion(message: types.Message, state: FSMContext):
         await message.answer("❌ Вы заблокированы и не можете отправлять посты.")
         return
 
-    # Игнорируем команды
     if message.text and message.text.startswith("/"):
         return
 
-    # Проверка подписки
     is_sub = await check_subscription(user.id)
     if not is_sub:
         kb = InlineKeyboardBuilder()
@@ -127,10 +276,8 @@ async def handle_suggestion(message: types.Message, state: FSMContext):
         )
         return
 
-    # Генерация ID черновика
     draft_id = f"{user.id}_{message.message_id}"
     
-    # Сохраняем черновик
     DRAFTS[draft_id] = {
         "user_id": user.id,
         "user_name": user.full_name,
@@ -141,7 +288,6 @@ async def handle_suggestion(message: types.Message, state: FSMContext):
         "content_type": message.content_type
     }
 
-    # Показываем меню выбора анонимности
     kb = InlineKeyboardBuilder()
     kb.button(text="👤 Открыто (показать имя)", callback_data=f"send_pub_{draft_id}")
     kb.button(text="🕵️‍♂️ Анонимно", callback_data=f"send_anon_{draft_id}")
@@ -155,7 +301,6 @@ async def handle_suggestion(message: types.Message, state: FSMContext):
         reply_markup=kb.as_markup()
     )
 
-# --- ОБРАБОТКА ВЫБОРА АНОНИМНОСТИ И ОТПРАВКА АДМИНУ ---
 @dp.callback_query(F.data.startswith("send_"))
 async def process_send_option(call: types.CallbackQuery):
     parts = call.data.split("_")
@@ -176,7 +321,6 @@ async def process_send_option(call: types.CallbackQuery):
         f"🔒 <b>Режим:</b> {'🕵️‍♂️ Анонимно' if is_anon else '🙋‍♂️ Открыто'}"
     )
 
-    # Клавиатура для админа
     kb = InlineKeyboardBuilder()
     kb.button(text="✅ Опубликовать", callback_data=f"adm_pub_{draft_id}_{1 if is_anon else 0}")
     kb.button(text="❌ Отклонить", callback_data=f"adm_rej_{draft_id}")
@@ -184,7 +328,6 @@ async def process_send_option(call: types.CallbackQuery):
     kb.adjust(2, 1)
 
     try:
-        # Пересылка поста админу
         await bot.send_message(ADMIN_ID, f"📥 <b>Новая предложка!</b>\n\n{author_info}", parse_mode=ParseMode.HTML)
         await bot.copy_message(
             chat_id=ADMIN_ID,
@@ -212,7 +355,6 @@ async def cancel_draft(call: types.CallbackQuery):
 
 # --- КНОПКИ МОДЕРАЦИИ ДЛЯ АДМИНА ---
 
-# 1. Публикация
 @dp.callback_query(F.data.startswith("adm_pub_"))
 async def admin_publish(call: types.CallbackQuery):
     parts = call.data.split("_")
@@ -225,7 +367,6 @@ async def admin_publish(call: types.CallbackQuery):
         return
 
     try:
-        # Формируем подпись автора, если пост не анонимный
         caption_extra = ""
         if not is_anon:
             if draft["username"]:
@@ -233,18 +374,15 @@ async def admin_publish(call: types.CallbackQuery):
             else:
                 caption_extra = f"\n\n✍️ <b>Автор:</b> {draft['user_name']}"
 
-        # Если оригинальное сообщение было текстом или имело подпись — добавляем автора
         if draft["content_type"] == "text":
             text_to_send = draft["caption"] + caption_extra
             published_msg = await bot.send_message(CHANNEL_ID, text_to_send, parse_mode=ParseMode.HTML)
         else:
-            # Для медиафайлов скопируем сообщение
             published_msg = await bot.copy_message(
                 chat_id=CHANNEL_ID,
                 from_chat_id=draft["chat_id"],
                 message_id=draft["message_id"]
             )
-            # Если не анонимно и есть возможность обновить подпись
             if not is_anon and caption_extra:
                 new_caption = (draft["caption"] or "") + caption_extra
                 try:
@@ -257,14 +395,12 @@ async def admin_publish(call: types.CallbackQuery):
                 except Exception:
                     pass
 
-        # Формируем ссылку на пост
         channel_username = CHANNEL_ID.replace("@", "")
         post_link = f"https://t.me/{channel_username}/{published_msg.message_id}"
 
         await call.message.edit_reply_markup(reply_markup=None)
         await call.message.reply(f"✅ <b>Опубликовано!</b>\n🔗 <a href='{post_link}'>Ссылка на пост</a>", parse_mode=ParseMode.HTML)
 
-        # Уведомляем автора
         try:
             kb = InlineKeyboardBuilder()
             kb.button(text="👀 Посмотреть пост", url=post_link)
@@ -283,17 +419,16 @@ async def admin_publish(call: types.CallbackQuery):
 
     await call.answer()
 
-# 2. Отклонение с выбором причины
 @dp.callback_query(F.data.startswith("adm_rej_"))
-async def admin_reject_menu(call: types.CallbackQuery, state: FSMContext):
+async def admin_reject_menu(call: types.CallbackQuery):
     draft_id = call.data.replace("adm_rej_", "")
     
     kb = InlineKeyboardBuilder()
-    kb.button(text="🚫 Не соответствует теме канала", callback_data=f"rejreason_offtopic_{draft_id}")
+    kb.button(text="🚫 Не соответствует теме", callback_data=f"rejreason_offtopic_{draft_id}")
     kb.button(text="⚠️ Спам / Реклама", callback_data=f"rejreason_spam_{draft_id}")
-    kb.button(text="🖼️ Низкое качество медиа", callback_data=f"rejreason_lowquality_{draft_id}")
-    kb.button(text="✍️ Написать свою причину", callback_data=f"rejreason_custom_{draft_id}")
-    kb.button(text="❌ Без указания причины", callback_data=f"rejreason_none_{draft_id}")
+    kb.button(text="🖼️ Низкое качество", callback_data=f"rejreason_lowquality_{draft_id}")
+    kb.button(text="✍️ Своя причина", callback_data=f"rejreason_custom_{draft_id}")
+    kb.button(text="❌ Без причины", callback_data=f"rejreason_none_{draft_id}")
     kb.adjust(1)
 
     await call.message.reply("Выберите причину отклонения:", reply_markup=kb.as_markup())
@@ -317,14 +452,13 @@ async def process_rejection_reason(call: types.CallbackQuery, state: FSMContext)
 
     if reason_type == "custom":
         await state.set_state(CustomRejectState.waiting_for_custom_reason)
-        await state.update_data(user_id=user_id, draft_id=draft_id, admin_msg_id=call.message.message_id)
+        await state.update_data(user_id=user_id, draft_id=draft_id)
         await call.message.edit_text("✏️ Напишите причину отклонения в ответном сообщении:")
         await call.answer()
         return
 
     reason_text = reasons_map.get(reason_type)
     
-    # Отправляем уведомление автору
     if user_id:
         try:
             msg = "💔 <b>К сожалению, твой пост был отклонён модератором.</b>"
@@ -353,29 +487,29 @@ async def custom_rejection_received(message: types.Message, state: FSMContext):
     await message.reply(f"❌ <b>Пост отклонён с вашей причиной:</b>\n<i>{custom_reason}</i>", parse_mode=ParseMode.HTML)
     await state.clear()
 
-# 3. Блокировка пользователя
 @dp.callback_query(F.data.startswith("adm_ban_"))
 async def admin_ban_user(call: types.CallbackQuery):
     user_id = int(call.data.replace("adm_ban_", ""))
     BANNED_USERS.add(user_id)
     
-    await call.message.reply(f"🚫 <b>Пользователь ID <code>{user_id}</code> успешно заблокирован!</b>", parse_mode=ParseMode.HTML)
+    await call.message.reply(f"🚫 <b>Пользователь ID <code>{user_id}</code> заблокирован!</b>", parse_mode=ParseMode.HTML)
     try:
         await bot.send_message(user_id, "❌ Вы были заблокированы администратором бота.")
     except Exception:
         pass
     await call.answer()
 
-# --- КОМАНДЫ ДЛЯ НАСТРОЙКИ ---
+# --- КОМАНДЫ ДЛЯ МЕНЮ ---
 async def setup_bot_commands():
     commands = [
         BotCommand(command="start", description="Инструкция по предложке"),
+        BotCommand(command="rules", description="Правила Литературного Клуба"),
+        BotCommand(command="dice", description="Бросить кубик в чате"),
     ]
     await bot.set_my_commands(commands)
 
 # --- ЗАПУСК БОТА ---
 async def main():
-    # Запуск веб-сервера для Keep-Alive
     app = web.Application()
     app.router.add_get('/', handle_ping)
     runner = web.AppRunner(app)
