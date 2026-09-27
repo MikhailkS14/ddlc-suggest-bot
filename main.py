@@ -8,6 +8,7 @@ from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command, CommandStart, CommandObject
 from aiogram.enums import ParseMode
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import BotCommand
 from aiohttp import web
 
 # ---------------- CONFIG ----------------
@@ -44,15 +45,15 @@ SAD_TEMPLATES = [
     "Сквозь холодный туман пробиваются {w1} и {w2},\nЗастыли слова на обожженном листке.\nЛишь тихий шёпот, где {w3} и {w4} замерли в ночи —\nИ догорает пламя одинокой свечи..."
 ]
 
-# --- БАЗА ДАННЫХ ДЛЯ ИГР ---
 MONIKA_ADVICES = [
-    "Помни: если что-то идёт не по плану, сделай паузу, выпей чаю и взгляни на всё с нового ракурса! ✨",
+    "Помни: если что-то идёт не по плану, сделай паузу, выпей чаю и взгляни на всё с нового ракурса! ✨",
     "Иногда самое важное решение — это просто дать себе отдохнуть. Ты отлично справляешься! 💚",
     "Не бойся ошибок в своём 'коде жизни'. Каждая из них — лишь шаг к созданию идеальной программы! ☕",
     "Каждый день — это новая страница. Какую историю ты напишешь сегодня?",
     "Секрет успеха прост: верь в свои силы и не забывай улыбаться даже в самые пасмурные дни! 🎀"
 ]
 
+# --- 15 ВОПРОСОВ ДЛЯ ВИКТОРИНЫ ЮРИ ---
 QUIZ_QUESTIONS = [
     {
         "question": "📜 Какой любимый жанр книг предпочитает Юри?",
@@ -60,14 +61,74 @@ QUIZ_QUESTIONS = [
         "correct": 1
     },
     {
-        "question": "🧁 Какой ингредиент Нацуки считала самым секретным для идеального капкейка?",
-        "options": ["Соль", "Любовь и ваниль", "Какао", "Клубничный джем"],
+        "question": "🧁 Какой ингредиент Нацуки считает секретным для идеального капкейка?",
+        "options": ["Соль", "Любовь и любовь к деталям", "Какао", "Клубничный джем"],
         "correct": 1
     },
     {
         "question": "🎀 Кто является основателем и президентом Литературного Клуба?",
         "options": ["Сайори", "Юри", "Моника", "Нацуки"],
         "correct": 2
+    },
+    {
+        "question": "☕ Из какого растения получают зеленый, черный и белый чай?",
+        "options": ["Камелия китайская", "Мелисса", "Альпийская роза", "Жасмин"],
+        "correct": 0
+    },
+    {
+        "question": "🍵 Как называется традиционный японский порошковый зеленый чай?",
+        "options": ["Сенча", "Матча", "Улун", "Пуэр"],
+        "correct": 1
+    },
+    {
+        "question": "🌿 Какое эфирное масло придает чаю 'Эрл Грей' его фирменный цитрусовый аромат?",
+        "options": ["Лайм", "Бергамотовая цедра", "Масло бергамота", "Грейпфрут"],
+        "correct": 2
+    },
+    {
+        "question": "🔥 Что произойдет, если заварить зеленый чай крутым кипятком (100°C)?",
+        "options": ["Он станет сладким", "Он станет горьким и потеряет аромат", "Ничего не изменится", "Он превратится в улун"],
+        "correct": 1
+    },
+    {
+        "question": "🇬🇧 В какой стране зародилась традиция 'High Tea' (Высокого чая)?",
+        "options": ["Китай", "Япония", "Великобритания", "Индия"],
+        "correct": 2
+    },
+    {
+        "question": "🌺 Какой чай имеет ярко-синий цвет благодаря цветку Клитории тройчатой?",
+        "options": ["Каркаде", "Анчан", "Ройбос", "Мате"],
+        "correct": 1
+    },
+    {
+        "question": "🪵 Какой чай обладает дымным ароматом из-за сушки над сосновыми дровами?",
+        "options": ["Лапсанг Сушонг", "Дарджилинг", "Ассам", "Гунпаудер"],
+        "correct": 0
+    },
+    {
+        "question": "🏺 Как называется традиционная посуда из глины для китайских чайных церемоний?",
+        "options": ["Исинский чайник", "Пиала", "Самовар", "Термос"],
+        "correct": 0
+    },
+    {
+        "question": "🍂 Какой вид чая выдерживается и ферментируется годами, улучшая вкус?",
+        "options": ["Зеленый", "Белый", "Пуэр", "Желтый"],
+        "correct": 2
+    },
+    {
+        "question": "🥛 Что традиционно добавляют в индийский чай Масала?",
+        "options": ["Лимон и мяту", "Молоко и специи", "Сок яблока", "Шоколад"],
+        "correct": 1
+    },
+    {
+        "question": "❄️ Как называется холодное заваривание чая в течение нескольких часов?",
+        "options": ["Айс-ти", "Колд-брю", "Фреш", "Микс"],
+        "correct": 1
+    },
+    {
+        "question": "📖 Что Юри принесла в клуб, чтобы читать вместе с Главным Героем?",
+        "options": ["Комикс", "Книгу 'Портрет Маркова'", "Учебник по физике", "Дневник"],
+        "correct": 1
     }
 ]
 
@@ -87,26 +148,35 @@ def save_json(filepath, data):
     except Exception:
         pass
 
+# --- Функция проверки подписки на канал ---
+async def check_subscription(user_id: int) -> bool:
+    try:
+        member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+        return member.status in ["creator", "administrator", "member"]
+    except Exception as e:
+        logging.error(f"Ошибка проверки подписки: {e}")
+        return True  # В случае ошибки пропускаем, чтобы не блокировать полностью
+
 # --- Команда /start ---
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
-    if message.chat.type == "private":
-        welcome_text = (
-            f"Привет, {message.from_user.first_name}! 🎀\n\n"
-            f"Это официальный бот Клуба **{CHANNEL_ID}**!\n\n"
-            "✨ **Предложка:** Отправь мне текст, фото или видео, и я передам администраторам!\n"
-            "📅 `/mybd ДД.ММ` — записать свой День Рождения.\n\n"
-            "🎭 **Мини-игры и развлечения в чате:**\n"
-            "• `!стих слово1, слово2, слово3, слово4` — сочинить стихотворение в стиле DDLC\n"
-            "• `!капкейк` — угостить Нацуки сладостями\n"
-            "• `!моника` или `!совет` — совет дня от Моники\n"
-            "• `!печенье` — бросить печеньку в чат для Сайори\n"
-            "• `!чай` или `!викторина` — литературная викторина с Юри"
-        )
-        await message.answer(welcome_text, parse_mode=ParseMode.MARKDOWN)
+    welcome_text = (
+        f"Привет, {message.from_user.first_name}! 🎀\n\n"
+        f"Это официальный бот Клуба **{CHANNEL_ID}**!\n\n"
+        "✨ **Предложка (в ЛС):** Отправь мне текст, фото или видео, и я передам администраторам!\n"
+        "*(Обрати внимание: отправлять посты могут только подписчики нашего канала!)*\n\n"
+        "📅 `/mybd ДД.ММ` — записать свой День Рождения.\n\n"
+        "🎭 **Мини-игры и развлечения:**\n"
+        "• `/poem` или `!стих слово1, слово2, слово3, слово4` — сочинить стихотворение в стиле DDLC\n"
+        "• `/sayori` или `!печенье` — операция с печеньками Сайори\n"
+        "• `/cupcake` или `!капкейк` — угостить Нацуки\n"
+        "• `/monika` или `!совет` — совет дня от Моники\n"
+        "• `/quiz` или `!чай` — викторина с Юри"
+    )
+    await message.answer(welcome_text, parse_mode=ParseMode.MARKDOWN)
 
 # --- 1. ГЕНЕРАТОР СТИХОВ ---
-@dp.message(F.text.startswith("!стих") | F.text.startswith("/poem"))
+@dp.message(F.text.startswith("!стих") | Command("poem"))
 async def generate_poem(message: types.Message):
     raw_text = message.text.replace("!стих", "").replace("/poem", "").strip()
     words = [w.strip().lower() for w in raw_text.replace(",", " ").split() if w.strip()]
@@ -114,7 +184,7 @@ async def generate_poem(message: types.Message):
     if len(words) < 4:
         await message.reply(
             "⚠️ Напиши **ровно 4 слова** через запятую или пробел!\n"
-            "Пример: `!стих чай, книга, дождь, уют`",
+            "Пример: `/poem чай, книга, дождь, уют` или `!стих чай, книга, дождь, уют`",
             parse_mode=ParseMode.MARKDOWN
         )
         return
@@ -151,8 +221,57 @@ async def generate_poem(message: types.Message):
     )
     await message.answer(result_msg, parse_mode=ParseMode.MARKDOWN)
 
-# --- 2. ИГРА: УГОСТИ НАЦУКИ КАПКЕЙКОМ ---
-@dp.message(F.text.startswith("!капкейк") | F.text.startswith("!нацуки"))
+# --- 2. ИГРА: ОПЕРАЦИЯ «ПЕЧЕНЬЕ САЙОРИ» ---
+@dp.message(F.text.startswith("!печенье") | Command("sayori"))
+async def sayori_cookie_game(message: types.Message):
+    kb = InlineKeyboardBuilder()
+    kb.button(text="💙 Помочь Сайори (отвлечь Нацуки)", callback_data="cookie_help")
+    kb.button(text="🛡️ Охранять поднос", callback_data="cookie_guard")
+    kb.button(text="😋 Съесть печеньку самому", callback_data="cookie_eat")
+    kb.adjust(1)
+    
+    text = (
+        f"🍪 **Операция: Свежая выпечка!**\n\n"
+        f"Нацуки принесла в клуб свежее печенье с корицей и ушла проверять чайник:\n"
+        f"*«[Имя], присмотри за подносом! И не спускай глаз с Сайори!»*\n\n"
+        f"Сайори тут же подбегает к тебе с умоляющими глазками:\n"
+        f"*«Ну пожалуйста~ Всего одну печеньку! Нацуки даже не заметит!»*\n\n"
+        f"Что ты сделаешь?"
+    )
+    await message.answer(text, reply_markup=kb.as_markup(), parse_mode=ParseMode.MARKDOWN)
+
+@dp.callback_query(F.data.startswith("cookie_"))
+async def cookie_cb(call: types.CallbackQuery):
+    action = call.data.split("_")[1]
+    user_name = call.from_user.first_name
+
+    if action == "help":
+        res = (
+            f"🤝 **{user_name} помогает Сайори!**\n\n"
+            f"Ты забалтываешь Нацуки разговором про новую главу манги. Сайори ловко сцапывает печеньку и довольная жует за спиной!\n"
+            f"💖 **Нацуки:** *«Хм... Одно печенье испарилось? Сайори-и-и!!»*\n"
+            f"💙 **Сайори:** *«Оно улетело в рай для печенек! Спасибо, {user_name}~!»* 🍪✨"
+        )
+    elif action == "guard":
+        res = (
+            f"🛡️ **{user_name} держит оборону!**\n\n"
+            f"Ты встаешь перед подносом. Сайори пытается отвлечь тебя криками 'Смотри, там НЛО!', но ты непреклонен.\n"
+            f"💖 **Нацуки возвращается:** *«Ого, ты спас выпечку! За надежность держи первую печеньку!»*\n"
+            f"💙 **Сайори:** *«Эх... Но зато тебе досталась самая вкусная!»* 😋"
+        )
+    else:
+        res = (
+            f"😋 **{user_name} берет дело в свои руки!**\n\n"
+            f"Ты хладнокровно съедаешь печеньку прямо на глазах у шокированной Сайори!\n"
+            f"💙 **Сайори:** *«Э-эй! Это же была МОЯ идея украсть печенье!»*\n"
+            f"💖 **Нацуки вбегает:** *«Так, почему у вас обоих крошки на щеках?!»* 😾"
+        )
+    
+    await call.message.edit_text(res, parse_mode=ParseMode.MARKDOWN)
+    await call.answer()
+
+# --- 3. ИГРА: УГОСТИ НАЦУКИ КАПКЕЙКОМ ---
+@dp.message(F.text.startswith("!капкейк") | Command("cupcake"))
 async def cupcake_game(message: types.Message):
     outcome = random.randint(1, 100)
     user_name = message.from_user.first_name
@@ -170,14 +289,14 @@ async def cupcake_game(message: types.Message):
         )
     else:
         res = (
-            f"🧁 **{user_name}** создает настоящий клубничный шедевр!\n\n"
+            f"🧁 **{user_name}** создает настоящий клубничный шедевр!\n\n"
             "✨ **Идеально!**\n"
             "💖 **Нацуки (глаза светятся):** *«Вау... Это потрясающе! Ладно, ты официально лучший кулинар в этом клубе!»* 🧁💖"
         )
     await message.answer(res, parse_mode=ParseMode.MARKDOWN)
 
-# --- 3. ИГРА: СОВЕТ ОТ МОНИКИ ---
-@dp.message(F.text.startswith("!моника") | F.text.startswith("!совет"))
+# --- 4. ИГРА: СОВЕТ ОТ МОНИКИ ---
+@dp.message(F.text.startswith("!моника") | F.text.startswith("!совет") | Command("monika"))
 async def monika_advice(message: types.Message):
     advice = random.choice(MONIKA_ADVICES)
     text = (
@@ -187,35 +306,13 @@ async def monika_advice(message: types.Message):
     )
     await message.answer(text, parse_mode=ParseMode.MARKDOWN)
 
-# --- 4. ИГРА: ПОЙМАЙ ПЕЧЕНЬКУ САЙОРИ ---
-@dp.message(F.text.startswith("!печенье") | F.text.startswith("!сайори"))
-async def cookie_drop(message: types.Message):
-    kb = InlineKeyboardBuilder()
-    kb.button(text="🍪 Схватить печеньку!", callback_data="grab_cookie")
-    
-    text = (
-        f"💙 **Сайори упустила коробку с печеньем!**\n"
-        f"Одна розовая печенька катится по столу... Кто успеет забрать ее первым?"
-    )
-    await message.answer(text, reply_markup=kb.as_markup())
-
-@dp.callback_query(F.data == "grab_cookie")
-async def grab_cookie_cb(call: types.CallbackQuery):
-    user_name = call.from_user.first_name
-    await call.message.edit_text(
-        f"🎉 **{user_name}** оказался самым быстрым и схватил печеньку!\n\n"
-        f"💙 **Сайори:** *«Э-эй! Это была моя последняя печенька! Ну ладно... приятного аппетита!»* 😋"
-    )
-    await call.answer()
-
 # --- 5. ИГРА: ВИКТОРИНА С ЮРИ ---
-@dp.message(F.text.startswith("!чай") | F.text.startswith("!викторина"))
+@dp.message(F.text.startswith("!чай") | F.text.startswith("!викторина") | Command("quiz"))
 async def quiz_cmd(message: types.Message):
     q = random.choice(QUIZ_QUESTIONS)
     kb = InlineKeyboardBuilder()
     
     for idx, opt in enumerate(q["options"]):
-        # Кодируем правильный ли ответ в callback_data
         is_correct = "1" if idx == q["correct"] else "0"
         kb.button(text=opt, callback_data=f"quiz_{is_correct}")
     
@@ -258,13 +355,27 @@ async def set_bd_cmd(message: types.Message, command: CommandObject):
     save_json(BDAYS_FILE, bdays)
     await message.answer(f"🎉 Запомнил! Твой День Рождения — **{date_str}**.", parse_mode=ParseMode.MARKDOWN)
 
-# --- ПРЕДЛОЖКА В ЛИЧНЫХ СООБЩЕНИЯХ ---
+# --- ПРЕДЛОЖКА В ЛИЧНЫХ СООБЩЕНИЯХ (С ПРОВЕРКОЙ ПОДПИСКИ) ---
 @dp.message(F.chat.type == "private")
 async def handle_suggest(message: types.Message):
     if message.text and message.text.startswith("/"):
         return
 
     user = message.from_user
+
+    # Проверка подписки на канал
+    is_subscribed = await check_subscription(user.id)
+    if not is_subscribed:
+        kb = InlineKeyboardBuilder()
+        kb.button(text="📢 Подписаться на канал", url=f"https://t.me/{CHANNEL_ID.replace('@', '')}")
+        await message.answer(
+            f"⚠️ **Чтобы отправлять посты в предложку, необходимо быть подписанным на наш канал {CHANNEL_ID}!**\n\n"
+            "Подпишись на канал и отправь сообщение повторно! 💕",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=kb.as_markup()
+        )
+        return
+
     username_str = f"@{user.username}" if user.username else "без юзернейма"
     author_info = f"<b>Автор:</b> {user.full_name} ({username_str}) | ID: <code>{user.id}</code>"
     
@@ -322,6 +433,19 @@ async def reject_callback(call: types.CallbackQuery):
 async def handle_ping(request):
     return web.Response(text="OK")
 
+# --- Регистрация списка команд для кнопки / в Telegram ---
+async def setup_bot_commands():
+    commands = [
+        BotCommand(command="start", description="Перезапустить бота / Справка"),
+        BotCommand(command="poem", description="Сочинить стих в стиле DDLC (!стих)"),
+        BotCommand(command="sayori", description="Операция с печеньем Сайори (!печенье)"),
+        BotCommand(command="cupcake", description="Угостить Нацуки капкейком (!капкейк)"),
+        BotCommand(command="monika", description="Совет дня от Моники (!моника)"),
+        BotCommand(command="quiz", description="Викторина с Юри (!чай)"),
+        BotCommand(command="mybd", description="Записать День Рождения (ДД.ММ)"),
+    ]
+    await bot.set_my_commands(commands)
+
 async def main():
     app = web.Application()
     app.router.add_get('/', handle_ping)
@@ -330,6 +454,7 @@ async def main():
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
 
+    await setup_bot_commands()  # Регистрируем меню команд
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
