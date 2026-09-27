@@ -53,7 +53,6 @@ MONIKA_ADVICES = [
     "Секрет успеха прост: верь в свои силы и не забывай улыбаться даже в самые пасмурные дни! 🎀"
 ]
 
-# --- 15 ВОПРОСОВ ДЛЯ ВИКТОРИНЫ ЮРИ ---
 QUIZ_QUESTIONS = [
     {"question": "📜 Какой любимый жанр книг предпочитает Юри?", "options": ["Комедийная манга", "Глубокий психологический хоррор", "Легкая романтика", "Научная фантастика"], "correct": 1},
     {"question": "🧁 Какой ингредиент Нацуки считает секретным для идеального капкейка?", "options": ["Соль", "Любовь и внимание к деталям", "Какао", "Клубничный джем"], "correct": 1},
@@ -88,7 +87,6 @@ def save_json(filepath, data):
     except Exception:
         pass
 
-# --- Функция проверки подписки ---
 async def check_subscription(user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
@@ -97,7 +95,7 @@ async def check_subscription(user_id: int) -> bool:
         logging.error(f"Ошибка проверки подписки: {e}")
         return True
 
-# --- КОМАНДЫ (ИДУТ ПЕРВЫМИ!) ---
+# --- КОМАНДЫ ---
 
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
@@ -116,9 +114,12 @@ async def start_cmd(message: types.Message):
     )
     await message.answer(welcome_text, parse_mode=ParseMode.MARKDOWN)
 
-@dp.message(F.text.startswith("!стих") | Command("poem"))
+@dp.message(F.text.lower().startswith("!стих") | Command("poem"))
 async def generate_poem(message: types.Message):
     raw_text = message.text.replace("!стих", "").replace("/poem", "").strip()
+    if "@" in raw_text:
+        raw_text = raw_text.split("@")[0].strip()
+    
     words = [w.strip().lower() for w in raw_text.replace(",", " ").split() if w.strip()]
     
     if len(words) < 4:
@@ -161,7 +162,7 @@ async def generate_poem(message: types.Message):
     )
     await message.answer(result_msg, parse_mode=ParseMode.MARKDOWN)
 
-@dp.message(F.text.startswith("!печенье") | Command("sayori"))
+@dp.message(F.text.lower().startswith("!печенье") | Command("sayori"))
 async def sayori_cookie_game(message: types.Message):
     kb = InlineKeyboardBuilder()
     kb.button(text="💙 Помочь Сайори (отвлечь Нацуки)", callback_data="cookie_help")
@@ -208,7 +209,7 @@ async def cookie_cb(call: types.CallbackQuery):
     await call.message.edit_text(res, parse_mode=ParseMode.MARKDOWN)
     await call.answer()
 
-@dp.message(F.text.startswith("!капкейк") | Command("cupcake"))
+@dp.message(F.text.lower().startswith("!капкейк") | Command("cupcake"))
 async def cupcake_game(message: types.Message):
     outcome = random.randint(1, 100)
     user_name = message.from_user.first_name
@@ -232,7 +233,7 @@ async def cupcake_game(message: types.Message):
         )
     await message.answer(res, parse_mode=ParseMode.MARKDOWN)
 
-@dp.message(F.text.startswith("!моника") | F.text.startswith("!совет") | Command("monika"))
+@dp.message(F.text.lower().startswith("!моника") | F.text.lower().startswith("!совет") | Command("monika"))
 async def monika_advice(message: types.Message):
     advice = random.choice(MONIKA_ADVICES)
     text = (
@@ -242,7 +243,7 @@ async def monika_advice(message: types.Message):
     )
     await message.answer(text, parse_mode=ParseMode.MARKDOWN)
 
-@dp.message(F.text.startswith("!чай") | F.text.startswith("!викторина") | Command("quiz"))
+@dp.message(F.text.lower().startswith("!чай") | F.text.lower().startswith("!викторина") | Command("quiz"))
 async def quiz_cmd(message: types.Message):
     q = random.choice(QUIZ_QUESTIONS)
     kb = InlineKeyboardBuilder()
@@ -276,7 +277,7 @@ async def set_bd_cmd(message: types.Message, command: CommandObject):
     try:
         datetime.strptime(date_str, "%d.%m")
     except ValueError:
-        await message.answer("❌ Неверный формат! Используй `ДД.ММ` (пример: `13.10`)", parse_mode=ParseMode.MARKDOWN)
+        await message.answer("❌ Неверный формат! Используй `ДД.ММ` (пример: `13.10` или `04.06`)", parse_mode=ParseMode.MARKDOWN)
         return
 
     bdays = load_json(BDAYS_FILE)
@@ -289,16 +290,14 @@ async def set_bd_cmd(message: types.Message, command: CommandObject):
     save_json(BDAYS_FILE, bdays)
     await message.answer(f"🎉 Запомнил! Твой День Рождения — **{date_str}**.", parse_mode=ParseMode.MARKDOWN)
 
-# --- ПРЕДЛОЖКА В ЛС (ИДЕТ В САМОМ КОНЦЕ, ЧТОБЫ НЕ ПЕРЕХВАТЫВАТЬ КОМАНДЫ) ---
+# --- ПРЕДЛОЖКА ТОЛЬКО В ЛИЧНЫХ СООБЩЕНИЯХ ---
 @dp.message(F.chat.type == "private")
 async def handle_suggest(message: types.Message):
-    # Пропускаем, если текст начинается с команды или спец. символа
     if message.text and (message.text.startswith("/") or message.text.startswith("!")):
         return
 
     user = message.from_user
 
-    # Проверка подписки на канал
     is_subscribed = await check_subscription(user.id)
     if not is_subscribed:
         kb = InlineKeyboardBuilder()
@@ -364,11 +363,9 @@ async def reject_callback(call: types.CallbackQuery):
         pass
     await call.answer()
 
-# --- Веб-сервер для Render ---
 async def handle_ping(request):
     return web.Response(text="OK")
 
-# --- Регистрация списка команд для кнопки / в Telegram ---
 async def setup_bot_commands():
     commands = [
         BotCommand(command="start", description="Перезапустить бота / Справка"),
@@ -389,7 +386,7 @@ async def main():
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
 
-    await setup_bot_commands()  # Регистрируем меню команд
+    await setup_bot_commands()
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
