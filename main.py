@@ -55,81 +55,21 @@ MONIKA_ADVICES = [
 
 # --- 15 ВОПРОСОВ ДЛЯ ВИКТОРИНЫ ЮРИ ---
 QUIZ_QUESTIONS = [
-    {
-        "question": "📜 Какой любимый жанр книг предпочитает Юри?",
-        "options": ["Комедийная манга", "Глубокий психологический хоррор", "Легкая романтика", "Научная фантастика"],
-        "correct": 1
-    },
-    {
-        "question": "🧁 Какой ингредиент Нацуки считает секретным для идеального капкейка?",
-        "options": ["Соль", "Любовь и любовь к деталям", "Какао", "Клубничный джем"],
-        "correct": 1
-    },
-    {
-        "question": "🎀 Кто является основателем и президентом Литературного Клуба?",
-        "options": ["Сайори", "Юри", "Моника", "Нацуки"],
-        "correct": 2
-    },
-    {
-        "question": "☕ Из какого растения получают зеленый, черный и белый чай?",
-        "options": ["Камелия китайская", "Мелисса", "Альпийская роза", "Жасмин"],
-        "correct": 0
-    },
-    {
-        "question": "🍵 Как называется традиционный японский порошковый зеленый чай?",
-        "options": ["Сенча", "Матча", "Улун", "Пуэр"],
-        "correct": 1
-    },
-    {
-        "question": "🌿 Какое эфирное масло придает чаю 'Эрл Грей' его фирменный цитрусовый аромат?",
-        "options": ["Лайм", "Бергамотовая цедра", "Масло бергамота", "Грейпфрут"],
-        "correct": 2
-    },
-    {
-        "question": "🔥 Что произойдет, если заварить зеленый чай крутым кипятком (100°C)?",
-        "options": ["Он станет сладким", "Он станет горьким и потеряет аромат", "Ничего не изменится", "Он превратится в улун"],
-        "correct": 1
-    },
-    {
-        "question": "🇬🇧 В какой стране зародилась традиция 'High Tea' (Высокого чая)?",
-        "options": ["Китай", "Япония", "Великобритания", "Индия"],
-        "correct": 2
-    },
-    {
-        "question": "🌺 Какой чай имеет ярко-синий цвет благодаря цветку Клитории тройчатой?",
-        "options": ["Каркаде", "Анчан", "Ройбос", "Мате"],
-        "correct": 1
-    },
-    {
-        "question": "🪵 Какой чай обладает дымным ароматом из-за сушки над сосновыми дровами?",
-        "options": ["Лапсанг Сушонг", "Дарджилинг", "Ассам", "Гунпаудер"],
-        "correct": 0
-    },
-    {
-        "question": "🏺 Как называется традиционная посуда из глины для китайских чайных церемоний?",
-        "options": ["Исинский чайник", "Пиала", "Самовар", "Термос"],
-        "correct": 0
-    },
-    {
-        "question": "🍂 Какой вид чая выдерживается и ферментируется годами, улучшая вкус?",
-        "options": ["Зеленый", "Белый", "Пуэр", "Желтый"],
-        "correct": 2
-    },
-    {
-        "question": "🥛 Что традиционно добавляют в индийский чай Масала?",
-        "options": ["Лимон и мяту", "Молоко и специи", "Сок яблока", "Шоколад"],
-        "correct": 1
-    },
-    {
-        "question": "❄️ Как называется холодное заваривание чая в течение нескольких часов?",
-        "options": ["Айс-ти", "Колд-брю", "Фреш", "Микс"],
-        "correct": 1
-    },
-    {
-        "question": "📖 Что Юри принесла в клуб, чтобы читать вместе с Главным Героем?",
-        "options": ["Комикс", "Книгу 'Портрет Маркова'", "Учебник по физике", "Дневник"],
-        "correct": 1
-    }
+    {"question": "📜 Какой любимый жанр книг предпочитает Юри?", "options": ["Комедийная манга", "Глубокий психологический хоррор", "Легкая романтика", "Научная фантастика"], "correct": 1},
+    {"question": "🧁 Какой ингредиент Нацуки считает секретным для идеального капкейка?", "options": ["Соль", "Любовь и внимание к деталям", "Какао", "Клубничный джем"], "correct": 1},
+    {"question": "🎀 Кто является основателем и президентом Литературного Клуба?", "options": ["Сайори", "Юри", "Моника", "Нацуки"], "correct": 2},
+    {"question": "☕ Из какого растения получают зеленый, черный и белый чай?", "options": ["Камелия китайская", "Мелисса", "Альпийская роза", "Жасмин"], "correct": 0},
+    {"question": "🍵 Как называется традиционный японский порошковый зеленый чай?", "options": ["Сенча", "Матча", "Улун", "Пуэр"], "correct": 1},
+    {"question": "🌿 Какое эфирное масло придает чаю 'Эрл Грей' его фирменный цитрусовый аромат?", "options": ["Лайм", "Бергамотовая цедра", "Масло бергамота", "Грейпфрут"], "correct": 2},
+    {"question": "🔥 Что произойдет, если заварить зеленый чай крутым кипятком (100°C)?", "options": ["Он станет сладким", "Он станет горьким и потеряет аромат", "Ничего не изменится", "Он превратится в улун"], "correct": 1},
+    {"question": "🇬🇧 В какой стране зародилась традиция 'High Tea' (Высокого чая)?", "options": ["Китай", "Япония", "Великобритания", "Индия"], "correct": 2},
+    {"question": "🌺 Какой чай имеет ярко-синий цвет благодаря цветку Клитории тройчатой?", "options": ["Каркаде", "Анчан", "Ройбос", "Мате"], "correct": 1},
+    {"question": "🪵 Какой чай обладает дымным ароматом из-за сушки над сосновыми дровами?", "options": ["Лапсанг Сушонг", "Дарджилинг", "Ассам", "Гунпаудер"], "correct": 0},
+    {"question": "🏺 Как называется традиционная посуда из глины для китайских чайных церемоний?", "options": ["Исинский чайник", "Пиала", "Самовар", "Термос"], "correct": 0},
+    {"question": "🍂 Какой вид чая выдерживается и ферментируется годами, улучшая вкус?", "options": ["Зеленый", "Белый", "Пуэр", "Желтый"], "correct": 2},
+    {"question": "🥛 Что традиционно добавляют в индийский чай Масала?", "options": ["Лимон и мяту", "Молоко и специи", "Сок яблока", "Шоколад"], "correct": 1},
+    {"question": "❄️ Как называется холодное заваривание чая в течение нескольких часов?", "options": ["Айс-ти", "Колд-брю", "Фреш", "Микс"], "correct": 1},
+    {"question": "📖 Что Юри принесла в клуб, чтобы читать вместе с Главным Героем?", "options": ["Комикс", "Книгу 'Портрет Маркова'", "Учебник по физике", "Дневник"], "correct": 1}
 ]
 
 def load_json(filepath):
@@ -148,16 +88,17 @@ def save_json(filepath, data):
     except Exception:
         pass
 
-# --- Функция проверки подписки на канал ---
+# --- Функция проверки подписки ---
 async def check_subscription(user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
         return member.status in ["creator", "administrator", "member"]
     except Exception as e:
         logging.error(f"Ошибка проверки подписки: {e}")
-        return True  # В случае ошибки пропускаем, чтобы не блокировать полностью
+        return True
 
-# --- Команда /start ---
+# --- КОМАНДЫ (ИДУТ ПЕРВЫМИ!) ---
+
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
     welcome_text = (
@@ -175,7 +116,6 @@ async def start_cmd(message: types.Message):
     )
     await message.answer(welcome_text, parse_mode=ParseMode.MARKDOWN)
 
-# --- 1. ГЕНЕРАТОР СТИХОВ ---
 @dp.message(F.text.startswith("!стих") | Command("poem"))
 async def generate_poem(message: types.Message):
     raw_text = message.text.replace("!стих", "").replace("/poem", "").strip()
@@ -221,7 +161,6 @@ async def generate_poem(message: types.Message):
     )
     await message.answer(result_msg, parse_mode=ParseMode.MARKDOWN)
 
-# --- 2. ИГРА: ОПЕРАЦИЯ «ПЕЧЕНЬЕ САЙОРИ» ---
 @dp.message(F.text.startswith("!печенье") | Command("sayori"))
 async def sayori_cookie_game(message: types.Message):
     kb = InlineKeyboardBuilder()
@@ -233,7 +172,7 @@ async def sayori_cookie_game(message: types.Message):
     text = (
         f"🍪 **Операция: Свежая выпечка!**\n\n"
         f"Нацуки принесла в клуб свежее печенье с корицей и ушла проверять чайник:\n"
-        f"*«[Имя], присмотри за подносом! И не спускай глаз с Сайори!»*\n\n"
+        f"*«{message.from_user.first_name}, присмотри за подносом! И не спускай глаз с Сайори!»*\n\n"
         f"Сайори тут же подбегает к тебе с умоляющими глазками:\n"
         f"*«Ну пожалуйста~ Всего одну печеньку! Нацуки даже не заметит!»*\n\n"
         f"Что ты сделаешь?"
@@ -266,11 +205,9 @@ async def cookie_cb(call: types.CallbackQuery):
             f"💙 **Сайори:** *«Э-эй! Это же была МОЯ идея украсть печенье!»*\n"
             f"💖 **Нацуки вбегает:** *«Так, почему у вас обоих крошки на щеках?!»* 😾"
         )
-    
     await call.message.edit_text(res, parse_mode=ParseMode.MARKDOWN)
     await call.answer()
 
-# --- 3. ИГРА: УГОСТИ НАЦУКИ КАПКЕЙКОМ ---
 @dp.message(F.text.startswith("!капкейк") | Command("cupcake"))
 async def cupcake_game(message: types.Message):
     outcome = random.randint(1, 100)
@@ -295,7 +232,6 @@ async def cupcake_game(message: types.Message):
         )
     await message.answer(res, parse_mode=ParseMode.MARKDOWN)
 
-# --- 4. ИГРА: СОВЕТ ОТ МОНИКИ ---
 @dp.message(F.text.startswith("!моника") | F.text.startswith("!совет") | Command("monika"))
 async def monika_advice(message: types.Message):
     advice = random.choice(MONIKA_ADVICES)
@@ -306,7 +242,6 @@ async def monika_advice(message: types.Message):
     )
     await message.answer(text, parse_mode=ParseMode.MARKDOWN)
 
-# --- 5. ИГРА: ВИКТОРИНА С ЮРИ ---
 @dp.message(F.text.startswith("!чай") | F.text.startswith("!викторина") | Command("quiz"))
 async def quiz_cmd(message: types.Message):
     q = random.choice(QUIZ_QUESTIONS)
@@ -331,7 +266,6 @@ async def quiz_cb(call: types.CallbackQuery):
     await call.message.edit_text(f"{call.message.text}\n\n{ans}")
     await call.answer()
 
-# --- Запись Дня Рождения ---
 @dp.message(Command("mybd"))
 async def set_bd_cmd(message: types.Message, command: CommandObject):
     if not command.args:
@@ -355,10 +289,11 @@ async def set_bd_cmd(message: types.Message, command: CommandObject):
     save_json(BDAYS_FILE, bdays)
     await message.answer(f"🎉 Запомнил! Твой День Рождения — **{date_str}**.", parse_mode=ParseMode.MARKDOWN)
 
-# --- ПРЕДЛОЖКА В ЛИЧНЫХ СООБЩЕНИЯХ (С ПРОВЕРКОЙ ПОДПИСКИ) ---
+# --- ПРЕДЛОЖКА В ЛС (ИДЕТ В САМОМ КОНЦЕ, ЧТОБЫ НЕ ПЕРЕХВАТЫВАТЬ КОМАНДЫ) ---
 @dp.message(F.chat.type == "private")
 async def handle_suggest(message: types.Message):
-    if message.text and message.text.startswith("/"):
+    # Пропускаем, если текст начинается с команды или спец. символа
+    if message.text and (message.text.startswith("/") or message.text.startswith("!")):
         return
 
     user = message.from_user
