@@ -27,11 +27,23 @@ SAYORI_WORDS = {"счастье", "солнце", "дружба", "уют", "п�
 YURI_WORDS = {"дождь", "книга", "чай", "тьма", "тайна", "философия", "ночь", "тишина", "судьба"}
 NATSUKI_WORDS = {"сладости", "капкейк", "котик", "манга", "мило", "клубника", "торт", "розовый"}
 
-# --- Шаблоны стихотворений (адаптированы под именительный падеж) ---
-POEM_TEMPLATES = [
+# Словарь меланхоличных / грустных слов
+SAD_WORDS = {
+    "боль", "слёзы", "слезы", "тьма", "одиночество", "тоска", "грусть", "печаль", 
+    "прощай", "крик", "шрам", "кровь", "тень", "холод", "увядание", "забыт", "мрак", "звонок"
+}
+
+# --- Шаблоны стихотворений ---
+LIGHT_TEMPLATES = [
     "В нашем клубе сегодня витают {w1} и {w2},\nМы пишем строки, забывая про тоску.\nПусть греют душу нам {w3} и {w4} в тишине —\nСловно во сне, в моём окне...",
     "Где-то далеко остались {w1} и {w2},\nА в Литературном Клубе снова теплота.\nПусть дарят радость нам {w3} и {w4},\nИ льётся свет сквозь облака!",
     "Мы назовем эти строки: «{w1}» и «{w2}»,\nПусть каждый стих приносит капельку тепла.\nКогда вокруг есть {w3} и {w4},\nДуша Клуба снова ожила!"
+]
+
+SAD_TEMPLATES = [
+    "Капают капли, скрывая {w1} и {w2},\nВ пустой комнате снова витает тоска.\nЗабытые мысли, лишь {w3} и {w4} вдали —\nМы удержать этот миг не смогли...",
+    "Тихо уходит свет, оставляя {w1} и {w2},\nСловно эхо из прошлого, ранит строка.\nКогда в сердце лишь {w3} и {w4} остались опять,\nНам остается только молча ждать...",
+    "Сквозь холодный туман пробиваются {w1} и {w2},\nЗастыли слова на обожженном листке.\nЛишь тихий шёпот, где {w3} и {w4} замерли в ночи —\nИ догорает пламя одинокой свечи..."
 ]
 
 def load_json(filepath):
@@ -68,41 +80,43 @@ async def start_cmd(message: types.Message):
 # --- ГЕНЕРАТОР СТИХОВ (Команда !стих или /poem) ---
 @dp.message(F.text.startswith("!стих") | F.text.startswith("/poem"))
 async def generate_poem(message: types.Message):
-    # Извлекаем текст после команды
     raw_text = message.text.replace("!стих", "").replace("/poem", "").strip()
-    
-    # Разбиваем по запятым или пробелам
     words = [w.strip().lower() for w in raw_text.replace(",", " ").split() if w.strip()]
     
     if len(words) < 4:
         await message.reply(
             "⚠️ Напиши **ровно 4 слова** через запятую или пробел!\n"
-            "Пример: `!стих чай, книга, дождь, уют`",
+            "Пример: `!стих боль, слёзы, тьма, тоска`",
             parse_mode=ParseMode.MARKDOWN
         )
         return
 
-    # Берем первые 4 слова
     w1, w2, w3, w4 = words[0], words[1], words[2], words[3]
-    
-    # Подставляем в случайный шаблон
-    template = random.choice(POEM_TEMPLATES)
-    poem_text = template.format(w1=w1, w2=w2, w3=w3, w4=w4)
-
-    # Оцениваем, кому больше понравился стих
     all_words = set(words)
-    sayori_score = len(all_words.intersection(SAYORI_WORDS))
-    yuri_score = len(all_words.intersection(YURI_WORDS))
-    natsuki_score = len(all_words.intersection(NATSUKI_WORDS))
+    
+    # Проверяем наличие грустных слов
+    sad_score = len(all_words.intersection(SAD_WORDS))
 
-    if sayori_score > yuri_score and sayori_score > natsuki_score:
-        reaction = "💙 **Сайори в восторге!** 'Ой, какой милый и тёплый стих! У меня аж настроение поднялось!' 🤗"
-    elif yuri_score > sayori_score and yuri_score > natsuki_score:
-        reaction = "💜 **Юри оценила:** 'Очень глубокие и метафоричные строки... Поэзия действительно удалась.' ☕"
-    elif natsuki_score > sayori_score and natsuki_score > yuri_score:
-        reaction = "💖 **Нацуки краснеет:** 'Ну... получилось неплохо! Не то чтобы мне прямо ОЧЕНЬ понравилось, но сойдёт!' 🧁"
+    if sad_score >= 1:
+        template = random.choice(SAD_TEMPLATES)
+        poem_text = template.format(w1=w1, w2=w2, w3=w3, w4=w4)
+        reaction = "💜 **Юри (сочувственно):** 'Это... очень глубокое и трогательное стихотворение. В нём чувствуется настоящая драма и светлая печаль...' ☕"
     else:
-        reaction = "💚 **Моника:** 'Прекрасная работа над слогом! Клуб гордится твоим творчеством!' ✨"
+        template = random.choice(LIGHT_TEMPLATES)
+        poem_text = template.format(w1=w1, w2=w2, w3=w3, w4=w4)
+
+        sayori_score = len(all_words.intersection(SAYORI_WORDS))
+        yuri_score = len(all_words.intersection(YURI_WORDS))
+        natsuki_score = len(all_words.intersection(NATSUKI_WORDS))
+
+        if sayori_score > yuri_score and sayori_score > natsuki_score:
+            reaction = "💙 **Сайори в восторге!** 'Ой, какой милый и тёплый стих! У меня аж настроение поднялось!' 🤗"
+        elif yuri_score > sayori_score and yuri_score > natsuki_score:
+            reaction = "💜 **Юри оценила:** 'Очень глубокие и метафоричные строки... Поэзия действительно удалась.' ☕"
+        elif natsuki_score > sayori_score and natsuki_score > yuri_score:
+            reaction = "💖 **Нацуки краснеет:** 'Ну... получилось неплохо! Не то чтобы мне прямо ОЧЕНЬ понравилось, но сойдёт!' 🧁"
+        else:
+            reaction = "💚 **Моника:** 'Прекрасная работа над слогом! Клуб гордится твоим творчеством!' ✨"
 
     result_msg = (
         f"📜 **Стихотворение от {message.from_user.first_name}:**\n\n"
