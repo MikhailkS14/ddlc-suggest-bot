@@ -31,11 +31,13 @@ async def check_subscription(user_id: int) -> bool:
 @dp.message(CommandStart(), F.chat.type == "private")
 async def start_cmd(message: types.Message):
     welcome_text = (
-        f"Привет, {message.from_user.first_name}! 🎀\n\n"
-        f"Это официальный бот предложки для канала **{CHANNEL_ID}**!\n\n"
-        "📥 **Как отправить пост:**\n"
-        "Просто отправь мне в этот чат **текст**, **фото** или **видео**, и я передам его администраторам на модерацию.\n\n"
-        "⚠️ *Предложка доступна только для подписчиков нашего канала!*"
+        f"Добро пожаловать в Литературный Клуб, {message.from_user.first_name}! 🎀\n\n"
+        f"Это официальный бот предложки для нашего канала **{CHANNEL_ID}**.\n\n"
+        "✨ **Как предложить свой пост:**\n"
+        "• Просто отправь сюда **текст**, **фотография** или **видео** с подписью.\n"
+        "• Твоё сообщение будет передано администраторам на проверку.\n"
+        "• Если пост пройдёт модерацию, он сразу появится в канале, а ты получишь уведомление!\n\n"
+        "⚠️ *Предложка доступна только для подписчиков нашего канала.*"
     )
     await message.answer(welcome_text, parse_mode=ParseMode.MARKDOWN)
 
@@ -43,7 +45,6 @@ async def start_cmd(message: types.Message):
 @dp.message(F.new_chat_members)
 async def welcome_new_members(message: types.Message):
     for new_member in message.new_chat_members:
-        # Не приветствуем самого бота
         if new_member.id == (await bot.get_me()).id:
             continue
         
@@ -57,7 +58,6 @@ async def welcome_new_members(message: types.Message):
 @dp.message(F.left_chat_member)
 async def farewell_member(message: types.Message):
     left_member = message.left_chat_member
-    # Не прощаемся с самим ботом
     if left_member.id == (await bot.get_me()).id:
         return
 
@@ -71,7 +71,6 @@ async def farewell_member(message: types.Message):
 # --- ПРЕДЛОЖКА (СТРОГО В ЛС) ---
 @dp.message(F.chat.type == "private")
 async def handle_suggest(message: types.Message):
-    # Игнорируем стартовую команду
     if message.text and message.text.startswith("/start"):
         return
 
@@ -171,7 +170,7 @@ async def handle_ping(request):
 
 async def setup_bot_commands():
     commands = [
-        BotCommand(command="start", description="Инструкция по предложке"),
+        BotCommand(command="start", description="Информация о предложке"),
     ]
     await bot.set_my_commands(commands)
 
