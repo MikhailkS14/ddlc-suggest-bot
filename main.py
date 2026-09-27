@@ -344,12 +344,44 @@ async def handle_suggest(message: types.Message):
 @dp.callback_query(F.data.startswith("pub_"))
 async def publish_callback(call: types.CallbackQuery):
     user_id = call.data.split("_")[1]
-    await call.message.edit_reply_markup(reply_markup=None)
-    await call.message.reply("✅ Опубликовано!")
+    
     try:
-        await bot.send_message(int(user_id), "🎉 Твой пост опубликован в канале!")
-    except Exception:
-        pass
+        # Автоматическая публикация оригинала в канал
+        if call.message.photo:
+            caption = call.message.caption or ""
+            # Очищаем от заголовка админ-уведомления
+            if "<blockquote>" in caption:
+                clean_text = caption.split("<blockquote>")[1].split("</blockquote>")[0]
+            else:
+                clean_text = ""
+            await bot.send_photo(CHANNEL_ID, call.message.photo[-1].file_id, caption=clean_text)
+        elif call.message.video:
+            caption = call.message.caption or ""
+            if "<blockquote>" in caption:
+                clean_text = caption.split("<blockquote>")[1].split("</blockquote>")[0]
+            else:
+                clean_text = ""
+            await bot.send_video(CHANNEL_ID, call.message.video.file_id, caption=clean_text)
+        elif call.message.text:
+            text = call.message.text
+            if "<blockquote>" in text:
+                clean_text = text.split("<blockquote>")[1].split("</blockquote>")[0]
+            else:
+                clean_text = text
+            await bot.send_message(CHANNEL_ID, clean_text)
+
+        await call.message.edit_reply_markup(reply_markup=None)
+        await call.message.reply("✅ Опубликовано в канал!")
+        
+        try:
+            await bot.send_message(int(user_id), "🎉 Твой пост опубликован в канале!")
+        except Exception:
+            pass
+            
+    except Exception as e:
+        logging.error(f"Ошибка публикации в канал: {e}")
+        await call.message.reply(f"⚠️ Ошибка при публикации в канал: {e}")
+        
     await call.answer()
 
 @dp.callback_query(F.data.startswith("rej_"))
