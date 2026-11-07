@@ -36,8 +36,9 @@ BANNED_USERS: Set[int] = set()
 # Хранилище варнов в чате: {user_id: count}
 USER_WARNS: Dict[int, int] = {}
 
-# Хранилище временных данных предложек: {draft_id: {...}}
-DRAFTS: Dict[str, dict] = {}
+# Исправленное хранилище черновиков с числовым индексом (чтобы не было ошибки "Черновик не найден")
+DRAFTS: Dict[int, dict] = {}
+DRAFT_COUNTER = 0
 
 # Черный список слов для автомодерации чата
 BAD_WORDS = {"спам", "скам", "ругательство"}
@@ -88,7 +89,7 @@ async def handle_ping(request):
 
 # --- КОМАНДА /START ---
 @dp.message(CommandStart(), F.chat.type == "private")
-async def start_cmd(message: types.Message):
+async def start_cmd_private(message: types.Message):
     BOT_USERS.add(message.from_user.id)
 
     if message.from_user.id in BANNED_USERS:
@@ -109,14 +110,13 @@ async def start_cmd(message: types.Message):
     kb.button(text="📢 Наш канал", url=f"https://t.me/{CHANNEL_ID.replace('@', '')}")
     await message.answer(welcome_text, parse_mode=ParseMode.HTML, reply_markup=kb.as_markup())
 
+@dp.message(CommandStart(), F.chat.type.in_({"group", "supergroup"}))
+async def start_cmd_group(message: types.Message):
+    await message.answer("🌸 Привет! Чтобы предложить пост или записать день рождения, напиши мне в личные сообщения: @DokiDokiForever_bot")
+
 # --- КОМАНДА /MYBD (ДЕНЬ РОЖДЕНИЯ) ---
 @dp.message(Command("mybd"))
 async def set_bd_cmd(message: types.Message, command: CommandObject):
-    # Особая встроенная проверка на твой ник
-    if message.from_user.username and message.from_user.username.lower() == "ifanatl":
-        await message.answer("🎉 Я и так отлично знаю твой День Рождения — **13.10**! Завтра обязательно отметим! 🎂✨", parse_mode=ParseMode.MARKDOWN)
-        return
-
     if not command.args:
         await message.answer("⚠️ Укажи дату в формате `ДД.ММ` (пример: `/mybd 13.10`)", parse_mode=ParseMode.MARKDOWN)
         return
@@ -198,10 +198,14 @@ async def cancel_broadcast_callback(call: types.CallbackQuery):
 @dp.message(Command("rules"), F.chat.type.in_({"group", "supergroup"}))
 async def rules_cmd(message: types.Message):
     rules_text = (
-        "📜 <b>Правила Литературного Клуба:</b>\n\n"
-        "1. Будьте вежливы и уважайте остальных участников. 🌸\n"
-        "2. Запрещён спам, реклама и несанкционированные ссылки. 🚫\n"
-        "3. Избегайте оскорблений и конфликтов. 🤝"
+        "🌸≈◈☛ⲠⲢⲀⲂΥⲖⲀ☚◈≈🌸\n\n"
+        "1~Ⲙⲁⲧⲉⲣυⲧⲥя Ⲙⲟⲯⲏⲟ ⲏⲟ ⲏⲉ ⲕⲁⲕ ⲥⲁⲡⲟⲯⲏυⲕ\n\n"
+        "2~Ⲟⲥⲕⲟⲣⳝⲗяⲧь ⲇⲣⲩⲅυⲭ υ υⲭ ⲣⲟⲇⲏю ⲎⲈⲖЬⳄЯ\n\n"
+        "3~Ⲏⲉ ⲥⲡⲁⲙυⲧь Ⲙⲁⲕⲥ. 10 ⲥⲧυⲕⲉⲣⲟⲃ υⲗυ ⲯⲉ ⲡⲉⲅⲟ ⲧⲟ ⲧⲁⲕⲟⲅⲟ\n\n"
+        "4~Ⲏⲉ ⲩⲅⲣⲟⲯⲁⲧь ⲏυ ⲕⲟⲙⲩ\n\n"
+        "5~ⲏⲉ ⲅⲟⲃⲟⲣυⲧь ⲡⲧⲟ ⲧы ⲉⳝ#ⲁⲗ ⲕⲟⲅⲟ-ⲧⲟ υⲗυ υⳅ Ⲣⲟⲇⲏυ ⲡⲉⲗⲟⲃⲉⲕⲁ\n\n"
+        "6~ 18+ Ⲙⲟⲯⲏⲟ ⲯⲉⲗⲁⲧⲉⲗьⲏⲟ ⲏⲉ ⲞⳠⲈⲎЬ ⲙⲏⲟⲅⲟ\n\n"
+        "1. Ⲡⲣⲁⲃυⲗⲁ Ⲥⲟⳝⲗюⲇⲁⲧь υ ⲏⲉ ⲏⲁⲣⲩⲱⲁⲧь ⲡⲣⲁⲃυⲗⲁ"
     )
     await message.answer(rules_text, parse_mode=ParseMode.HTML)
 
@@ -275,7 +279,6 @@ async def welcome_new_members(message: types.Message):
     for new_member in message.new_chat_members:
         if new_member.id == bot_obj.id:
             continue
-        # Проверка на твой день рождения при входе (или можно использовать в будущем для поздравлений)
         await message.answer(f"🌸 <b>Добро пожаловать в Литературный Клуб, {new_member.full_name}!</b> 🎀", parse_mode=ParseMode.HTML)
 
 @dp.message(F.left_chat_member)
@@ -291,7 +294,6 @@ async def chat_moderation(message: types.Message):
     if not message.text:
         return
 
-    # ФИШКА: Автоматическое удаление сообщения "0101" от любого участника
     if message.text.strip() == "0101":
         try:
             await message.delete()
@@ -317,6 +319,7 @@ async def chat_moderation(message: types.Message):
 
 @dp.message(F.chat.type == "private")
 async def handle_suggestion(message: types.Message, state: FSMContext):
+    global DRAFT_COUNTER
     user = message.from_user
     BOT_USERS.add(user.id)
 
@@ -330,7 +333,9 @@ async def handle_suggestion(message: types.Message, state: FSMContext):
         await message.answer(f"⚠️ Для предложки нужно подписаться на {CHANNEL_ID}!", reply_markup=kb.as_markup())
         return
 
-    draft_id = f"{user.id}_{message.message_id}"
+    DRAFT_COUNTER += 1
+    draft_id = DRAFT_COUNTER
+    
     DRAFTS[draft_id] = {
         "user_id": user.id, "user_name": user.full_name, "username": user.username,
         "message_id": message.message_id, "chat_id": message.chat.id,
@@ -349,7 +354,7 @@ async def handle_suggestion(message: types.Message, state: FSMContext):
 async def process_send_option(call: types.CallbackQuery):
     parts = call.data.split("_")
     is_anon = (parts[1] == "anon")
-    draft_id = "_".join(parts[2:])
+    draft_id = int(parts[2])
 
     draft = DRAFTS.get(draft_id)
     if not draft:
@@ -369,23 +374,27 @@ async def process_send_option(call: types.CallbackQuery):
         await bot.send_message(ADMIN_ID, f"📥 <b>Новая предложка!</b>\n\n{author_info}", parse_mode=ParseMode.HTML)
         await bot.copy_message(chat_id=ADMIN_ID, from_chat_id=draft["chat_id"], message_id=draft["message_id"], reply_markup=kb.as_markup())
         await call.message.edit_text("✨ Пост отправлен администраторам!")
-    except Exception:
+    except Exception as e:
+        logging.error(f"Ошибка отправки админу: {e}")
         await call.message.edit_text("⚠️ Ошибка отправки.")
     await call.answer()
 
 @dp.callback_query(F.data.startswith("cancel_draft_"))
 async def cancel_draft(call: types.CallbackQuery):
-    DRAFTS.pop(call.data.replace("cancel_draft_", ""), None)
+    draft_id = int(call.data.replace("cancel_draft_", ""))
+    DRAFTS.pop(draft_id, None)
     await call.message.edit_text("❌ Отменено.")
     await call.answer()
 
 @dp.callback_query(F.data.startswith("adm_pub_"))
 async def admin_publish(call: types.CallbackQuery):
     parts = call.data.split("_")
-    is_anon = bool(int(parts[3]))
-    draft = DRAFTS.get("_".join(parts[4:]))
+    is_anon = bool(int(parts[2]))
+    draft_id = int(parts[3])
+    
+    draft = DRAFTS.get(draft_id)
     if not draft:
-        await call.answer("Черновик не найден", show_alert=True)
+        await call.answer("Черновик не найден в памяти бота", show_alert=True)
         return
 
     try:
@@ -394,17 +403,26 @@ async def admin_publish(call: types.CallbackQuery):
             pub_msg = await bot.send_message(CHANNEL_ID, draft["caption"] + caption_extra, parse_mode=ParseMode.HTML)
         else:
             pub_msg = await bot.copy_message(chat_id=CHANNEL_ID, from_chat_id=draft["chat_id"], message_id=draft["message_id"])
+            if not is_anon and caption_extra:
+                try:
+                    await bot.edit_message_caption(chat_id=CHANNEL_ID, message_id=pub_msg.message_id, caption=(draft["caption"] or "") + caption_extra, parse_mode=ParseMode.HTML)
+                except Exception:
+                    pass
 
         post_link = f"https://t.me/{CHANNEL_ID.replace('@', '')}/{pub_msg.message_id}"
         await call.message.edit_reply_markup(reply_markup=None)
         await call.message.reply(f"✅ Опубликовано: {post_link}")
+        
+        # Очищаем черновик после публикации
+        DRAFTS.pop(draft_id, None)
+
         try:
             kb = InlineKeyboardBuilder().button(text="👀 Посмотреть", url=post_link)
             await bot.send_message(draft["user_id"], "🎉 Ваш пост опубликован в канале!", reply_markup=kb.as_markup())
         except Exception:
             pass
     except Exception as e:
-        await call.message.reply(f"⚠️ Ошибка: {e}")
+        await call.message.reply(f"⚠️ Ошибка публикации: {e}")
     await call.answer()
 
 @dp.callback_query(F.data.startswith("adm_rej_"))
@@ -421,12 +439,17 @@ async def admin_reject_menu(call: types.CallbackQuery):
 @dp.callback_query(F.data.startswith("rejreason_"))
 async def process_rejection_reason(call: types.CallbackQuery):
     parts = call.data.split("_")
-    draft = DRAFTS.get("_".join(parts[2:]))
-    if draft and draft["user_id"]:
-        try:
-            await bot.send_message(draft["user_id"], "💔 К сожалению, ваш пост был отклонён модератором.")
-        except Exception:
-            pass
+    draft_id = int(parts[2])
+    
+    draft = DRAFTS.get(draft_id)
+    if draft:
+        if draft["user_id"]:
+            try:
+                await bot.send_message(draft["user_id"], "💔 К сожалению, ваш пост был отклонён модератором.")
+            except Exception:
+                pass
+        DRAFTS.pop(draft_id, None)
+
     await call.message.edit_text("❌ Пост отклонён.")
     await call.answer()
 
